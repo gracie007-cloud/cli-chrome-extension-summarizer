@@ -93,7 +93,17 @@ describe('cli md-live rendering', () => {
     const stderr = collectStream()
 
     await runCli(
-      ['--model', 'openai/gpt-5.2', '--timeout', '2s', '--stream', 'auto', '--render', 'auto', 'https://example.com'],
+      [
+        '--model',
+        'openai/gpt-5.2',
+        '--timeout',
+        '2s',
+        '--stream',
+        'auto',
+        '--render',
+        'auto',
+        'https://example.com',
+      ],
       {
         env: { HOME: root, OPENAI_API_KEY: 'test' },
         fetch: fetchMock as unknown as typeof fetch,
@@ -105,15 +115,15 @@ describe('cli md-live rendering', () => {
     const out = stdout.getText()
     expect(out).toContain('\u001b[?2026h')
     expect(out).toContain('\u001b[?2026l')
-    expect(out).toContain('\u001b[2K')
+    expect(out).toContain('\u001b[0J')
     expect(out).toContain('\u001b[?25l')
     expect(out).toContain('\u001b[?25h')
 
-    const bsuCount = out.match(/\u001b\[\?2026h/g)?.length ?? 0
+    const ESC = String.fromCharCode(27)
+    const bsuCount = out.split(`${ESC}[?2026h`).length - 1
     expect(bsuCount).toBeGreaterThanOrEqual(2)
-    expect(out).toMatch(/\u001b\[[0-9]+A\r/)
+    expect(out).toMatch(new RegExp(`${ESC}\\[[0-9]+A\\r`))
 
     globalFetchSpy.mockRestore()
   })
 })
-

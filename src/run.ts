@@ -2,10 +2,9 @@ import { Command, CommanderError } from 'commander'
 import { createLiveRenderer, render as renderMarkdownAnsi } from 'markdansi'
 import { loadSummarizeConfig } from './config.js'
 import { createLinkPreviewClient } from './content/index.js'
-import { buildRunCostReport } from './costs.js'
 import type { LlmCall } from './costs.js'
+import { buildRunCostReport } from './costs.js'
 import { createFirecrawlScraper } from './firecrawl.js'
-import { loadLiteLlmCatalog, resolveLiteLlmPricingForModelId } from './pricing/litellm.js'
 import {
   parseDurationMs,
   parseFirecrawlMode,
@@ -18,6 +17,7 @@ import {
 import { generateTextWithModelId, streamTextWithModelId } from './llm/generate-text.js'
 import { createHtmlToMarkdownConverter } from './llm/html-to-markdown.js'
 import { normalizeGatewayStyleModelId, parseGatewayStyleModelId } from './llm/model-id.js'
+import { loadLiteLlmCatalog, resolveLiteLlmPricingForModelId } from './pricing/litellm.js'
 import {
   buildLinkSummaryPrompt,
   estimateMaxCompletionTokensForCharacters,
@@ -96,10 +96,6 @@ function buildProgram() {
       '2m'
     )
     .option(
-      '--config <path>',
-      'Optional config file path (JSON). Default: ~/.summarize/config.json'
-    )
-    .option(
       '--model <model>',
       'LLM model id (gateway-style): xai/..., openai/..., google/... (default: xai/grok-4-fast-non-reasoning)',
       undefined
@@ -142,7 +138,10 @@ function supportsColor(
   return true
 }
 
-function terminalWidth(stream: NodeJS.WritableStream, env: Record<string, string | undefined>): number {
+function terminalWidth(
+  stream: NodeJS.WritableStream,
+  env: Record<string, string | undefined>
+): number {
   const cols = (stream as unknown as { columns?: unknown }).columns
   if (typeof cols === 'number' && Number.isFinite(cols) && cols > 0) {
     return Math.floor(cols)
@@ -186,7 +185,6 @@ ${heading('Env Vars')}
   GOOGLE_GENERATIVE_AI_API_KEY optional (required for google/... models)
   ANTHROPIC_API_KEY     optional (required for anthropic/... models)
   SUMMARIZE_MODEL       optional (overrides default model selection)
-  SUMMARIZE_CONFIG      optional (path to config.json)
   FIRECRAWL_API_KEY     optional website extraction fallback (Markdown)
   APIFY_API_TOKEN       optional YouTube transcript fallback
 `
@@ -456,16 +454,13 @@ export async function runCli(
   const modelArg =
     typeof program.opts().model === 'string' ? (program.opts().model as string) : null
 
-  const configPathArg =
-    typeof program.opts().config === 'string' ? (program.opts().config as string) : null
-  const { config, path: configPath } = loadSummarizeConfig({ env, configPathArg })
+  const { config, path: configPath } = loadSummarizeConfig({ env })
 
   const xaiKeyRaw = typeof env.XAI_API_KEY === 'string' ? env.XAI_API_KEY : null
   const apiKey = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY : null
   const apifyToken = typeof env.APIFY_API_TOKEN === 'string' ? env.APIFY_API_TOKEN : null
   const firecrawlKey = typeof env.FIRECRAWL_API_KEY === 'string' ? env.FIRECRAWL_API_KEY : null
-  const anthropicKeyRaw =
-    typeof env.ANTHROPIC_API_KEY === 'string' ? env.ANTHROPIC_API_KEY : null
+  const anthropicKeyRaw = typeof env.ANTHROPIC_API_KEY === 'string' ? env.ANTHROPIC_API_KEY : null
   const googleKeyRaw =
     typeof env.GOOGLE_GENERATIVE_AI_API_KEY === 'string'
       ? env.GOOGLE_GENERATIVE_AI_API_KEY
@@ -482,8 +477,7 @@ export async function runCli(
   const anthropicApiKey = anthropicKeyRaw?.trim() ?? null
   const googleConfigured = typeof googleApiKey === 'string' && googleApiKey.length > 0
   const xaiConfigured = typeof xaiApiKey === 'string' && xaiApiKey.length > 0
-  const anthropicConfigured =
-    typeof anthropicApiKey === 'string' && anthropicApiKey.length > 0
+  const anthropicConfigured = typeof anthropicApiKey === 'string' && anthropicApiKey.length > 0
 
   const llmCalls: LlmCall[] = []
   let firecrawlRequests = 0
@@ -513,11 +507,7 @@ export async function runCli(
 
   const trackedFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
-      typeof input === 'string'
-        ? input
-        : input instanceof URL
-          ? input.toString()
-          : input.url
+      typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url
     let hostname: string | null = null
     try {
       hostname = new URL(url).hostname.toLowerCase()
@@ -608,7 +598,7 @@ export async function runCli(
         ? googleConfigured
         : parsedModelForLlm.provider === 'anthropic'
           ? anthropicConfigured
-        : Boolean(apiKey)
+          : Boolean(apiKey)
   const markdownProvider = hasKeyForModel ? parsedModelForLlm.provider : 'none'
 
   if (markdownRequested && effectiveMarkdownMode === 'llm' && !hasKeyForModel) {
@@ -619,7 +609,7 @@ export async function runCli(
           ? 'GOOGLE_GENERATIVE_AI_API_KEY'
           : parsedModelForLlm.provider === 'anthropic'
             ? 'ANTHROPIC_API_KEY'
-          : 'OPENAI_API_KEY'
+            : 'OPENAI_API_KEY'
     throw new Error(`--markdown llm requires ${required} for model ${parsedModelForLlm.canonical}`)
   }
 
@@ -826,7 +816,7 @@ export async function runCli(
         ? 'GOOGLE_GENERATIVE_AI_API_KEY'
         : parsedModel.provider === 'anthropic'
           ? 'ANTHROPIC_API_KEY'
-        : 'OPENAI_API_KEY'
+          : 'OPENAI_API_KEY'
   const hasRequiredKey =
     parsedModel.provider === 'xai'
       ? Boolean(xaiApiKey)
@@ -834,7 +824,7 @@ export async function runCli(
         ? googleConfigured
         : parsedModel.provider === 'anthropic'
           ? anthropicConfigured
-        : Boolean(apiKey)
+          : Boolean(apiKey)
   if (!hasRequiredKey) {
     throw new Error(
       `Missing ${requiredKeyEnv} for model ${parsedModel.canonical}. Set the env var or choose a different --model.`
@@ -886,6 +876,7 @@ export async function runCli(
       const liveRenderer = shouldLiveRenderSummary
         ? createLiveRenderer({
             write: (chunk) => stdout.write(chunk),
+            width: terminalWidth(stdout, env),
             renderFrame: (markdown) =>
               renderMarkdownAnsi(markdown, {
                 width: terminalWidth(stdout, env),
@@ -1041,6 +1032,7 @@ export async function runCli(
       const liveRenderer = shouldLiveRenderSummary
         ? createLiveRenderer({
             write: (chunk) => stdout.write(chunk),
+            width: terminalWidth(stdout, env),
             renderFrame: (markdown) =>
               renderMarkdownAnsi(markdown, {
                 width: terminalWidth(stdout, env),

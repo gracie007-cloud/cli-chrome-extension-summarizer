@@ -22,15 +22,17 @@ function normalizeTokenUsage(raw: unknown): LlmTokenUsage | null {
       ? usage.promptTokens
       : typeof usage.inputTokens === 'number' && Number.isFinite(usage.inputTokens)
         ? usage.inputTokens
-      : null
+        : null
   const completionTokens =
     typeof usage.completionTokens === 'number' && Number.isFinite(usage.completionTokens)
       ? usage.completionTokens
       : typeof usage.outputTokens === 'number' && Number.isFinite(usage.outputTokens)
         ? usage.outputTokens
-      : null
+        : null
   const totalTokens =
-    typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens) ? usage.totalTokens : null
+    typeof usage.totalTokens === 'number' && Number.isFinite(usage.totalTokens)
+      ? usage.totalTokens
+      : null
 
   if (promptTokens === null && completionTokens === null && totalTokens === null) {
     return null

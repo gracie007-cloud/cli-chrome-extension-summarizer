@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
@@ -61,11 +61,12 @@ describe('cli config precedence', () => {
     })
 
     const tempRoot = mkdtempSync(join(tmpdir(), 'summarize-cli-config-'))
-    const configPath = join(tempRoot, 'config.json')
+    const configPath = join(tempRoot, '.summarize', 'config.json')
+    mkdirSync(join(tempRoot, '.summarize'), { recursive: true })
     writeFileSync(configPath, JSON.stringify({ model: 'openai/gpt-5.2' }), 'utf8')
 
-    await runCli(['--config', configPath, '--timeout', '2s', 'https://example.com'], {
-      env: { OPENAI_API_KEY: 'test' },
+    await runCli(['--timeout', '2s', 'https://example.com'], {
+      env: { HOME: tempRoot, OPENAI_API_KEY: 'test' },
       fetch: fetchMock as unknown as typeof fetch,
       stdout: noopStream(),
       stderr: noopStream(),
@@ -89,15 +90,22 @@ describe('cli config precedence', () => {
     })
 
     const tempRoot = mkdtempSync(join(tmpdir(), 'summarize-cli-config-'))
-    const configPath = join(tempRoot, 'config.json')
-    writeFileSync(configPath, JSON.stringify({ model: 'openai/gpt-5.2' }), 'utf8')
+    const configPath = join(tempRoot, '.summarize', 'config.json')
+    mkdirSync(join(tempRoot, '.summarize'), { recursive: true })
+    writeFileSync(configPath, JSON.stringify({ model: 'xai/grok-4-fast-non-reasoning' }), 'utf8')
 
     const stdout = captureStream()
 
     await runCli(
-      ['--config', configPath, '--timeout', '2s', '--extract-only', '--json', 'https://example.com'],
+      [
+        '--timeout',
+        '2s',
+        '--extract-only',
+        '--json',
+        'https://example.com',
+      ],
       {
-        env: { SUMMARIZE_MODEL: 'openai/gpt-5.2' },
+        env: { HOME: tempRoot, SUMMARIZE_MODEL: 'openai/gpt-5.2' },
         fetch: fetchMock as unknown as typeof fetch,
         stdout: stdout.stream,
         stderr: noopStream(),

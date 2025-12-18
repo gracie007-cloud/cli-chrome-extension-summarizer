@@ -8,11 +8,6 @@ Default path:
 
 - `~/.summarize/config.json`
 
-Override:
-
-- `--config <path>`
-- `SUMMARIZE_CONFIG=<path>`
-
 ## Precedence
 
 For `model`:

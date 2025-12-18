@@ -14,7 +14,6 @@ By default `summarize` will call an LLM using **direct provider API keys**.
 - `GOOGLE_GENERATIVE_AI_API_KEY` (required for `google/...` models)
 - `ANTHROPIC_API_KEY` (required for `anthropic/...` models)
 - `SUMMARIZE_MODEL` (optional; overrides default model selection)
-- `SUMMARIZE_CONFIG` (optional; path to a JSON config file)
 
 ## Flags
 

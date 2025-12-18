@@ -10,8 +10,14 @@ describe('LiteLLM pricing catalog', () => {
     const catalog = {
       'gpt-5.2': { input_cost_per_token: 0.00000175, output_cost_per_token: 0.000014 },
       'claude-sonnet-4-5': { input_cost_per_token: 0.000003, output_cost_per_token: 0.000015 },
-      'gemini-3-flash-preview': { input_cost_per_token: 0.0000001, output_cost_per_token: 0.0000002 },
-      'xai/grok-4-fast-non-reasoning': { input_cost_per_token: 0.0000002, output_cost_per_token: 0.0000005 },
+      'gemini-3-flash-preview': {
+        input_cost_per_token: 0.0000001,
+        output_cost_per_token: 0.0000002,
+      },
+      'xai/grok-4-fast-non-reasoning': {
+        input_cost_per_token: 0.0000002,
+        output_cost_per_token: 0.0000005,
+      },
     }
 
     expect(resolveLiteLlmPricingForModelId(catalog, 'openai/gpt-5.2')).toEqual({
@@ -44,7 +50,10 @@ describe('LiteLLM pricing catalog', () => {
       throw new Error('unexpected fetch')
     })
 
-    const result = await loadLiteLlmCatalog({ env: {}, fetchImpl: fetchMock as unknown as typeof fetch })
+    const result = await loadLiteLlmCatalog({
+      env: {},
+      fetchImpl: fetchMock as unknown as typeof fetch,
+    })
     expect(result.source).toBe('none')
     expect(result.catalog).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(0)

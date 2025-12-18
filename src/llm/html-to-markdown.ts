@@ -1,6 +1,6 @@
 import type { ConvertHtmlToMarkdown } from '../content/link-preview/deps.js'
-import { generateTextWithModelId } from './generate-text.js'
 import type { LlmTokenUsage } from './generate-text.js'
+import { generateTextWithModelId } from './generate-text.js'
 
 const MAX_HTML_INPUT_CHARACTERS = 200_000
 

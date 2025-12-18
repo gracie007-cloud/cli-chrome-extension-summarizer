@@ -16,22 +16,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function resolveDefaultConfigPath(env: Record<string, string | undefined>): string | null {
-  const home = env.HOME?.trim() || homedir()
-  if (!home) return null
-  return join(home, '.summarize', 'config.json')
-}
-
 export function loadSummarizeConfig({
   env,
-  configPathArg,
 }: {
   env: Record<string, string | undefined>
-  configPathArg: string | null
 }): { config: SummarizeConfig | null; path: string | null } {
-  const fromEnv = env.SUMMARIZE_CONFIG?.trim() || null
-  const path = configPathArg?.trim() || fromEnv || resolveDefaultConfigPath(env)
-  if (!path) return { config: null, path: null }
+  const home = env.HOME?.trim() || homedir()
+  if (!home) return { config: null, path: null }
+  const path = join(home, '.summarize', 'config.json')
 
   let raw: string
   try {

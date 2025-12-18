@@ -5,7 +5,9 @@ import { fetchTranscriptWithApify } from '../src/content/link-preview/transcript
 describe('YouTube Apify transcript provider', () => {
   it('returns null when token is missing', async () => {
     const fetchMock = vi.fn(async () => new Response('nope', { status: 500 }))
-    expect(await fetchTranscriptWithApify(fetchMock as unknown as typeof fetch, null, 'url')).toBeNull()
+    expect(
+      await fetchTranscriptWithApify(fetchMock as unknown as typeof fetch, null, 'url')
+    ).toBeNull()
   })
 
   it('supports Pinto Studio dataset format', async () => {
