@@ -330,6 +330,7 @@ function writeFinishLine({
   strategy,
   chunkCount,
   report,
+  color,
 }: {
   stderr: NodeJS.WritableStream
   elapsedMs: number
@@ -337,6 +338,7 @@ function writeFinishLine({
   strategy: 'single' | 'map-reduce' | 'none'
   chunkCount: number | null
   report: ReturnType<typeof buildRunCostReport>
+  color: boolean
 }): void {
   const fmtUsd = (value: number | null) =>
     typeof value === 'number' && Number.isFinite(value) ? `$${value.toFixed(2)}` : 'unknown'
@@ -364,7 +366,9 @@ function writeFinishLine({
     parts.push(`chunks=${chunkCount}`)
   }
 
-  stderr.write(`Finished in ${formatElapsedMs(elapsedMs)} (${parts.join(' | ')})\n`)
+  const line = `Finished in ${formatElapsedMs(elapsedMs)} (${parts.join(' | ')})`
+  stderr.write('\n')
+  stderr.write(`${ansi('1;32', line, color)}\n`)
 }
 
 function buildChunkNotesPrompt({ content }: { content: string }): string {
@@ -787,6 +791,7 @@ export async function runCli(
         strategy: 'none',
         chunkCount: null,
         report: finishReport,
+        color: verboseColor,
       })
       return
     }
@@ -801,6 +806,7 @@ export async function runCli(
       strategy: 'none',
       chunkCount: null,
       report,
+      color: verboseColor,
     })
     return
   }
@@ -1158,6 +1164,7 @@ export async function runCli(
       strategy,
       chunkCount,
       report: finishReport,
+      color: verboseColor,
     })
     return
   }
@@ -1187,5 +1194,6 @@ export async function runCli(
     strategy,
     chunkCount,
     report,
+    color: verboseColor,
   })
 }
