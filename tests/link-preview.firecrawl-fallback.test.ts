@@ -7,6 +7,12 @@ const htmlResponse = (html: string, status = 200) =>
     headers: { 'Content-Type': 'text/html' },
   })
 
+const pdfResponse = (payload: string, status = 200) =>
+  new Response(payload, {
+    status,
+    headers: { 'Content-Type': 'application/pdf' },
+  })
+
 describe('link preview extraction (Firecrawl fallback)', () => {
   it('does not call Firecrawl for short but complete pages', async () => {
     const html =
@@ -214,6 +220,32 @@ describe('link preview extraction (Firecrawl fallback)', () => {
 
     const result = await client.fetchLinkContent('https://example.com', { timeoutMs: 2000 })
     expect(result.diagnostics.strategy).toBe('firecrawl')
+    expect(result.content).toContain('Hello from Firecrawl')
+  })
+
+  it('falls back to Firecrawl when the URL is not HTML (e.g. PDF)', async () => {
+    const scrapeWithFirecrawl = vi.fn(async () => ({
+      markdown: 'Hello from Firecrawl',
+      html: '<html><head><title>Firecrawl</title></head><body></body></html>',
+      metadata: { title: 'Firecrawl title' },
+    }))
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.url
+      if (url === 'https://example.com/paper') {
+        return pdfResponse('%PDF-1.4 fake payload')
+      }
+      throw new Error(`Unexpected fetch call: ${url}`)
+    })
+
+    const client = createLinkPreviewClient({
+      fetch: fetchMock as unknown as typeof fetch,
+      scrapeWithFirecrawl,
+    })
+
+    const result = await client.fetchLinkContent('https://example.com/paper', { timeoutMs: 2000 })
+    expect(result.diagnostics.strategy).toBe('firecrawl')
+    expect(scrapeWithFirecrawl).toHaveBeenCalledTimes(1)
     expect(result.content).toContain('Hello from Firecrawl')
   })
 })

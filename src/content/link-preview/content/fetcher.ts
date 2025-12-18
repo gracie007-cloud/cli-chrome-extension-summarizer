@@ -46,6 +46,16 @@ export async function fetchHtmlDocument(
       throw new Error(`Failed to fetch HTML document (status ${response.status})`)
     }
 
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? null
+    if (
+      contentType &&
+      !contentType.includes('text/html') &&
+      !contentType.includes('application/xhtml+xml') &&
+      !contentType.startsWith('text/')
+    ) {
+      throw new Error(`Unsupported content-type for HTML document fetch: ${contentType}`)
+    }
+
     return await response.text()
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
