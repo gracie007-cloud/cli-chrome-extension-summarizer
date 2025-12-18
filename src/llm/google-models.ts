@@ -85,19 +85,17 @@ export async function resolveGoogleModelForUsage({
   apiKey,
   fetchImpl,
   timeoutMs,
-  requireMethod,
 }: {
   requestedModelId: string
   apiKey: string
   fetchImpl: typeof fetch
   timeoutMs: number
-  requireMethod: 'generateContent' | 'streamGenerateContent'
-}): Promise<{ resolvedModelId: string; note: string | null }> {
+}): Promise<{ resolvedModelId: string; supportedMethods: string[]; note: string | null }> {
   const requested = normalizeModelId(requestedModelId)
 
   // Avoid an extra API call for known stable IDs.
   if (!isProbablyUnstableGoogleModelId(requested)) {
-    return { resolvedModelId: requested, note: null }
+    return { resolvedModelId: requested, supportedMethods: [], note: null }
   }
 
   let models: GoogleModelInfo[]
@@ -125,19 +123,14 @@ export async function resolveGoogleModelForUsage({
     const methods = Array.isArray(candidate.supportedGenerationMethods)
       ? candidate.supportedGenerationMethods
       : []
-    if (methods.includes(requireMethod)) {
-      if (noPreview && !exact) {
-        return {
-          resolvedModelId: normalizeModelId(candidate.name),
-          note: `Resolved ${requestedModelId} → ${normalizeModelId(candidate.name)} via ListModels`,
-        }
+    if (noPreview && !exact) {
+      return {
+        resolvedModelId: normalizeModelId(candidate.name),
+        supportedMethods: methods,
+        note: `Resolved ${requestedModelId} → ${normalizeModelId(candidate.name)} via ListModels`,
       }
-      return { resolvedModelId: normalizeModelId(candidate.name), note: null }
     }
-
-    throw new Error(
-      `Google model ${normalizeModelId(candidate.name)} exists but does not support ${requireMethod}.`
-    )
+    return { resolvedModelId: normalizeModelId(candidate.name), supportedMethods: methods, note: null }
   }
 
   const suggestions = pickSuggestions(models, 5)

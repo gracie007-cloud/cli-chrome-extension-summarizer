@@ -223,25 +223,52 @@ async function resolveModelIdForLlmCall({
   }
   fetchImpl: typeof fetch
   timeoutMs: number
-}): Promise<{ modelId: string; note: string | null }> {
+}): Promise<{ modelId: string; note: string | null; forceStreamOff: boolean }> {
   if (parsedModel.provider !== 'google') {
-    return { modelId: parsedModel.canonical, note: null }
+    return { modelId: parsedModel.canonical, note: null, forceStreamOff: false }
   }
 
   const key = apiKeys.googleApiKey
   if (!key) {
-    return { modelId: parsedModel.canonical, note: null }
+    return { modelId: parsedModel.canonical, note: null, forceStreamOff: false }
   }
 
-  const requireMethod = streamingEnabled ? 'streamGenerateContent' : 'generateContent'
   const resolved = await resolveGoogleModelForUsage({
     requestedModelId: parsedModel.model,
     apiKey: key,
     fetchImpl,
     timeoutMs,
-    requireMethod,
   })
-  return { modelId: `google/${resolved.resolvedModelId}`, note: resolved.note }
+
+  const supportsStreaming =
+    resolved.supportedMethods.length === 0 ||
+    resolved.supportedMethods.includes('streamGenerateContent')
+  const supportsNonStreaming =
+    resolved.supportedMethods.length === 0 || resolved.supportedMethods.includes('generateContent')
+
+  if (streamingEnabled && !supportsStreaming && supportsNonStreaming) {
+    return {
+      modelId: `google/${resolved.resolvedModelId}`,
+      note:
+        resolved.note ??
+        `Google model google/${resolved.resolvedModelId} does not support streaming; falling back to non-streaming.`,
+      forceStreamOff: true,
+    }
+  }
+
+  if (streamingEnabled && !supportsStreaming) {
+    throw new Error(
+      `Google model google/${resolved.resolvedModelId} exists but does not support streamGenerateContent.`
+    )
+  }
+
+  if (!streamingEnabled && !supportsNonStreaming) {
+    throw new Error(
+      `Google model google/${resolved.resolvedModelId} exists but does not support generateContent.`
+    )
+  }
+
+  return { modelId: `google/${resolved.resolvedModelId}`, note: resolved.note, forceStreamOff: false }
 }
 
 function attachRichHelp(
@@ -703,18 +730,19 @@ export async function runCli(
       attachment: { part: attachment.part, mediaType: attachment.mediaType },
     })
 
-    const modelResolution = await resolveModelIdForLlmCall({
-      parsedModel,
-      streamingEnabled,
-      apiKeys: { googleApiKey: apiKeysForLlm.googleApiKey },
-      fetchImpl: trackedFetch,
-      timeoutMs,
-    })
-    if (modelResolution.note && verbose) {
-      writeVerbose(stderr, verbose, modelResolution.note, verboseColor)
-    }
-    const effectiveModelId = modelResolution.modelId
-    const parsedModelEffective = parseGatewayStyleModelId(effectiveModelId)
+	    const modelResolution = await resolveModelIdForLlmCall({
+	      parsedModel,
+	      streamingEnabled,
+	      apiKeys: { googleApiKey: apiKeysForLlm.googleApiKey },
+	      fetchImpl: trackedFetch,
+	      timeoutMs,
+	    })
+	    if (modelResolution.note && verbose) {
+	      writeVerbose(stderr, verbose, modelResolution.note, verboseColor)
+	    }
+	    const effectiveModelId = modelResolution.modelId
+	    const parsedModelEffective = parseGatewayStyleModelId(effectiveModelId)
+	    const streamingEnabledForCall = streamingEnabled && !modelResolution.forceStreamOff
 
     const summaryLengthTarget =
       lengthArg.kind === 'preset'
@@ -729,22 +757,22 @@ export async function runCli(
 
     const messages = buildAssetPromptMessages({ promptText, attachment })
 
-    const shouldBufferSummaryForRender =
-      streamingEnabled && effectiveRenderMode === 'md' && isRichTty(stdout)
-    const shouldLiveRenderSummary =
-      streamingEnabled && effectiveRenderMode === 'md-live' && isRichTty(stdout)
-    const shouldStreamSummaryToStdout =
-      streamingEnabled && !shouldBufferSummaryForRender && !shouldLiveRenderSummary
+	    const shouldBufferSummaryForRender =
+	      streamingEnabledForCall && effectiveRenderMode === 'md' && isRichTty(stdout)
+	    const shouldLiveRenderSummary =
+	      streamingEnabledForCall && effectiveRenderMode === 'md-live' && isRichTty(stdout)
+	    const shouldStreamSummaryToStdout =
+	      streamingEnabledForCall && !shouldBufferSummaryForRender && !shouldLiveRenderSummary
 
     let summaryAlreadyPrinted = false
     let summary: string
 
-    if (streamingEnabled) {
-      let streamResult: Awaited<ReturnType<typeof streamTextWithModelId>>
-      try {
-        streamResult = await streamTextWithModelId({
-          modelId: parsedModelEffective.canonical,
-          apiKeys: apiKeysForLlm,
+	    if (streamingEnabledForCall) {
+	      let streamResult: Awaited<ReturnType<typeof streamTextWithModelId>>
+	      try {
+	        streamResult = await streamTextWithModelId({
+	          modelId: parsedModelEffective.canonical,
+	          apiKeys: apiKeysForLlm,
           prompt: messages,
           temperature: 0,
           maxOutputTokens,
@@ -1309,10 +1337,23 @@ export async function runCli(
     )
   }
 
+  const modelResolution = await resolveModelIdForLlmCall({
+    parsedModel,
+    streamingEnabled,
+    apiKeys: { googleApiKey: apiKeysForLlm.googleApiKey },
+    fetchImpl: trackedFetch,
+    timeoutMs,
+  })
+  if (modelResolution.note && verbose) {
+    writeVerbose(stderr, verbose, modelResolution.note, verboseColor)
+  }
+  const parsedModelEffective = parseGatewayStyleModelId(modelResolution.modelId)
+  const streamingEnabledForCall = streamingEnabled && !modelResolution.forceStreamOff
+
   writeVerbose(
     stderr,
     verbose,
-    `mode summarize provider=${parsedModel.provider} model=${parsedModel.canonical}`,
+    `mode summarize provider=${parsedModelEffective.provider} model=${parsedModelEffective.canonical}`,
     verboseColor
   )
   const maxCompletionTokens =
@@ -1324,17 +1365,17 @@ export async function runCli(
   let strategy: 'single' | 'map-reduce' = 'single'
   let chunkCount = 1
   const shouldBufferSummaryForRender =
-    streamingEnabled && effectiveRenderMode === 'md' && isRichTty(stdout)
+    streamingEnabledForCall && effectiveRenderMode === 'md' && isRichTty(stdout)
   const shouldLiveRenderSummary =
-    streamingEnabled && effectiveRenderMode === 'md-live' && isRichTty(stdout)
+    streamingEnabledForCall && effectiveRenderMode === 'md-live' && isRichTty(stdout)
   const shouldStreamSummaryToStdout =
-    streamingEnabled && !shouldBufferSummaryForRender && !shouldLiveRenderSummary
+    streamingEnabledForCall && !shouldBufferSummaryForRender && !shouldLiveRenderSummary
   let summaryAlreadyPrinted = false
 
   let summary: string
   if (!isLargeContent) {
     writeVerbose(stderr, verbose, 'summarize strategy=single', verboseColor)
-    if (streamingEnabled) {
+    if (streamingEnabledForCall) {
       writeVerbose(
         stderr,
         verbose,
@@ -1342,7 +1383,7 @@ export async function runCli(
         verboseColor
       )
       const streamResult = await streamTextWithModelId({
-        modelId: parsedModel.canonical,
+        modelId: parsedModelEffective.canonical,
         apiKeys: apiKeysForLlm,
         prompt,
         temperature: 0,
@@ -1408,7 +1449,7 @@ export async function runCli(
       }
     } else {
       const result = await summarizeWithModelId({
-        modelId: parsedModel.canonical,
+        modelId: parsedModelEffective.canonical,
         prompt,
         maxOutputTokens: maxCompletionTokens,
         timeoutMs,
@@ -1451,7 +1492,7 @@ export async function runCli(
       })
 
       const notesResult = await summarizeWithModelId({
-        modelId: parsedModel.canonical,
+        modelId: parsedModelEffective.canonical,
         prompt: chunkPrompt,
         maxOutputTokens: SUMMARY_LENGTH_TO_TOKENS.medium,
         timeoutMs,
@@ -1490,7 +1531,7 @@ export async function runCli(
       shares: [],
     })
 
-    if (streamingEnabled) {
+    if (streamingEnabledForCall) {
       writeVerbose(
         stderr,
         verbose,
@@ -1498,7 +1539,7 @@ export async function runCli(
         verboseColor
       )
       const streamResult = await streamTextWithModelId({
-        modelId: parsedModel.canonical,
+        modelId: parsedModelEffective.canonical,
         apiKeys: apiKeysForLlm,
         prompt: mergedPrompt,
         temperature: 0,
@@ -1564,7 +1605,7 @@ export async function runCli(
       }
     } else {
       const mergedResult = await summarizeWithModelId({
-        modelId: parsedModel.canonical,
+        modelId: parsedModelEffective.canonical,
         prompt: mergedPrompt,
         maxOutputTokens: maxCompletionTokens,
         timeoutMs,
@@ -1614,8 +1655,8 @@ export async function runCli(
       extracted,
       prompt,
       llm: {
-        provider: parsedModel.provider,
-        model: parsedModel.canonical,
+        provider: parsedModelEffective.provider,
+        model: parsedModelEffective.canonical,
         maxCompletionTokens,
         strategy,
         chunkCount,
@@ -1628,15 +1669,15 @@ export async function runCli(
       writeCostReport(costReport)
     }
     stdout.write(`${JSON.stringify(payload, null, 2)}\n`)
-    writeFinishLine({
-      stderr,
-      elapsedMs: Date.now() - runStartedAtMs,
-      model: parsedModel.canonical,
-      strategy,
-      chunkCount,
-      report: finishReport,
-      color: verboseColor,
-    })
+	    writeFinishLine({
+	      stderr,
+	      elapsedMs: Date.now() - runStartedAtMs,
+	      model: parsedModelEffective.canonical,
+	      strategy,
+	      chunkCount,
+	      report: finishReport,
+	      color: verboseColor,
+	    })
     return
   }
 
@@ -1658,13 +1699,13 @@ export async function runCli(
 
   const report = await buildReport()
   if (cost || verbose) writeCostReport(report)
-  writeFinishLine({
-    stderr,
-    elapsedMs: Date.now() - runStartedAtMs,
-    model: parsedModel.canonical,
-    strategy,
-    chunkCount,
-    report,
-    color: verboseColor,
-  })
+	  writeFinishLine({
+	    stderr,
+	    elapsedMs: Date.now() - runStartedAtMs,
+	    model: parsedModelEffective.canonical,
+	    strategy,
+	    chunkCount,
+	    report,
+	    color: verboseColor,
+	  })
 }

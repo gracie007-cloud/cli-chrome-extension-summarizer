@@ -25,11 +25,11 @@ describe('google model resolution (Gemini API ListModels)', () => {
       apiKey: 'test',
       fetchImpl: fetchMock as unknown as typeof fetch,
       timeoutMs: 2000,
-      requireMethod: 'streamGenerateContent',
     })
 
     expect(result.resolvedModelId).toBe('gemini-3.0-flash')
     expect(result.note).toMatch(/Resolved/i)
+    expect(result.supportedMethods).toContain('streamGenerateContent')
   })
 
   it('throws a helpful error with suggestions when model is missing', async () => {
@@ -57,7 +57,6 @@ describe('google model resolution (Gemini API ListModels)', () => {
         apiKey: 'test',
         fetchImpl: fetchMock as unknown as typeof fetch,
         timeoutMs: 2000,
-        requireMethod: 'streamGenerateContent',
       })
     ).rejects.toThrow(/Try one of:/)
   })
@@ -76,7 +75,6 @@ describe('google model resolution (Gemini API ListModels)', () => {
         apiKey: 'bad',
         fetchImpl: fetchMock as unknown as typeof fetch,
         timeoutMs: 2000,
-        requireMethod: 'streamGenerateContent',
       })
     ).rejects.toThrow(/GOOGLE_GENERATIVE_AI_API_KEY/i)
   })
