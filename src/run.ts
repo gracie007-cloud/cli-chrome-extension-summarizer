@@ -25,6 +25,7 @@ import {
 import { generateTextWithModelId, streamTextWithModelId } from './llm/generate-text.js'
 import { createHtmlToMarkdownConverter } from './llm/html-to-markdown.js'
 import { normalizeGatewayStyleModelId, parseGatewayStyleModelId } from './llm/model-id.js'
+import { resolveGoogleModelForUsage } from './llm/google-models.js'
 import { loadLiteLlmCatalog, resolveLiteLlmPricingForModelId } from './pricing/litellm.js'
 import {
   buildFileSummaryPrompt,
@@ -206,6 +207,41 @@ function assertProviderSupportsAttachment({
       `Model ${modelId} does not support attaching files of type ${attachment.mediaType}. Try a different --model (e.g. google/gemini-2.0-flash).`
     )
   }
+}
+
+async function resolveModelIdForLlmCall({
+  parsedModel,
+  streamingEnabled,
+  apiKeys,
+  fetchImpl,
+  timeoutMs,
+}: {
+  parsedModel: ReturnType<typeof parseGatewayStyleModelId>
+  streamingEnabled: boolean
+  apiKeys: {
+    googleApiKey: string | null
+  }
+  fetchImpl: typeof fetch
+  timeoutMs: number
+}): Promise<{ modelId: string; note: string | null }> {
+  if (parsedModel.provider !== 'google') {
+    return { modelId: parsedModel.canonical, note: null }
+  }
+
+  const key = apiKeys.googleApiKey
+  if (!key) {
+    return { modelId: parsedModel.canonical, note: null }
+  }
+
+  const requireMethod = streamingEnabled ? 'streamGenerateContent' : 'generateContent'
+  const resolved = await resolveGoogleModelForUsage({
+    requestedModelId: parsedModel.model,
+    apiKey: key,
+    fetchImpl,
+    timeoutMs,
+    requireMethod,
+  })
+  return { modelId: `google/${resolved.resolvedModelId}`, note: resolved.note }
 }
 
 function attachRichHelp(
@@ -667,6 +703,19 @@ export async function runCli(
       attachment: { part: attachment.part, mediaType: attachment.mediaType },
     })
 
+    const modelResolution = await resolveModelIdForLlmCall({
+      parsedModel,
+      streamingEnabled,
+      apiKeys: { googleApiKey: apiKeysForLlm.googleApiKey },
+      fetchImpl: trackedFetch,
+      timeoutMs,
+    })
+    if (modelResolution.note && verbose) {
+      writeVerbose(stderr, verbose, modelResolution.note, verboseColor)
+    }
+    const effectiveModelId = modelResolution.modelId
+    const parsedModelEffective = parseGatewayStyleModelId(effectiveModelId)
+
     const summaryLengthTarget =
       lengthArg.kind === 'preset'
         ? lengthArg.preset
@@ -694,7 +743,7 @@ export async function runCli(
       let streamResult: Awaited<ReturnType<typeof streamTextWithModelId>>
       try {
         streamResult = await streamTextWithModelId({
-          modelId: parsedModel.canonical,
+          modelId: parsedModelEffective.canonical,
           apiKeys: apiKeysForLlm,
           prompt: messages,
           temperature: 0,
@@ -784,7 +833,7 @@ export async function runCli(
       let result: Awaited<ReturnType<typeof summarizeWithModelId>>
       try {
         result = await summarizeWithModelId({
-          modelId: parsedModel.canonical,
+          modelId: parsedModelEffective.canonical,
           prompt: messages,
           maxOutputTokens,
           timeoutMs,
@@ -814,12 +863,12 @@ export async function runCli(
       throw new Error('LLM returned an empty summary')
     }
 
-    const extracted = {
-      kind: 'asset' as const,
-      source: sourceLabel,
-      mediaType: attachment.mediaType,
-      filename: attachment.filename,
-    }
+      const extracted = {
+        kind: 'asset' as const,
+        source: sourceLabel,
+        mediaType: attachment.mediaType,
+        filename: attachment.filename,
+      }
 
 	    if (json) {
 	      const finishReport = await buildReport()
@@ -846,8 +895,8 @@ export async function runCli(
 	                  : { kind: 'chars', maxCharacters: lengthArg.maxCharacters },
 	              model,
 	            }
-	      const payload: JsonOutput = {
-	        input,
+      const payload: JsonOutput = {
+        input,
 	        env: {
 	          hasXaiKey: Boolean(xaiApiKey),
 	          hasOpenAIKey: Boolean(apiKey),
@@ -859,8 +908,8 @@ export async function runCli(
         extracted,
         prompt: promptText,
         llm: {
-          provider: parsedModel.provider,
-          model: parsedModel.canonical,
+          provider: parsedModelEffective.provider,
+          model: parsedModelEffective.canonical,
           maxCompletionTokens: maxOutputTokens,
           strategy: 'single',
           chunkCount: 1,
@@ -876,7 +925,7 @@ export async function runCli(
       writeFinishLine({
         stderr,
         elapsedMs: Date.now() - runStartedAtMs,
-        model: parsedModel.canonical,
+        model: parsedModelEffective.canonical,
         strategy: 'single',
         chunkCount: 1,
         report: finishReport,
@@ -906,7 +955,7 @@ export async function runCli(
     writeFinishLine({
       stderr,
       elapsedMs: Date.now() - runStartedAtMs,
-      model: parsedModel.canonical,
+      model: parsedModelEffective.canonical,
       strategy: 'single',
       chunkCount: 1,
       report,

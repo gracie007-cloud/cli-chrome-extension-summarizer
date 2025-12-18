@@ -1,0 +1,135 @@
+type GoogleModelInfo = {
+  name: string
+  displayName?: string
+  supportedGenerationMethods?: string[]
+}
+
+type GoogleListModelsResponse = {
+  models?: GoogleModelInfo[]
+}
+
+function normalizeModelId(id: string): string {
+  const trimmed = id.trim()
+  if (trimmed.startsWith('models/')) return trimmed.slice('models/'.length)
+  return trimmed
+}
+
+function isProbablyUnstableGoogleModelId(modelId: string): boolean {
+  const id = modelId.toLowerCase()
+  if (id.includes('preview')) return true
+  if (id.includes('exp')) return true
+  if (id.includes('alpha')) return true
+  if (id.includes('beta')) return true
+  if (id.startsWith('gemini-3')) return true
+  return false
+}
+
+function withTimeoutSignal(timeoutMs: number): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  return { signal: controller.signal, cleanup: () => clearTimeout(timeout) }
+}
+
+async function listGoogleModels({
+  apiKey,
+  fetchImpl,
+  timeoutMs,
+}: {
+  apiKey: string
+  fetchImpl: typeof fetch
+  timeoutMs: number
+}): Promise<GoogleModelInfo[]> {
+  const { signal, cleanup } = withTimeoutSignal(timeoutMs)
+  try {
+    const res = await fetchImpl(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+      { signal }
+    )
+    if (!res.ok) {
+      throw new Error(`ListModels failed (${res.status} ${res.statusText})`)
+    }
+    const json = (await res.json()) as GoogleListModelsResponse
+    return Array.isArray(json.models) ? json.models : []
+  } finally {
+    cleanup()
+  }
+}
+
+function pickSuggestions(models: GoogleModelInfo[], limit: number): string[] {
+  const prefer = (s: string) => s.toLowerCase()
+  const ids = models
+    .map((m) => normalizeModelId(m.name))
+    .filter(Boolean)
+    .sort((a, b) => {
+      const aa = prefer(a)
+      const bb = prefer(b)
+      const score = (id: string) =>
+        (id.includes('flash') ? 0 : 10) +
+        (id.includes('3.0') || id.includes('3') ? 0 : 5) +
+        (id.includes('preview') ? 2 : 0)
+      return score(aa) - score(bb)
+    })
+  return ids.slice(0, Math.max(1, limit))
+}
+
+export async function resolveGoogleModelForUsage({
+  requestedModelId,
+  apiKey,
+  fetchImpl,
+  timeoutMs,
+  requireMethod,
+}: {
+  requestedModelId: string
+  apiKey: string
+  fetchImpl: typeof fetch
+  timeoutMs: number
+  requireMethod: 'generateContent' | 'streamGenerateContent'
+}): Promise<{ resolvedModelId: string; note: string | null }> {
+  const requested = normalizeModelId(requestedModelId)
+
+  // Avoid an extra API call for known stable IDs.
+  if (!isProbablyUnstableGoogleModelId(requested)) {
+    return { resolvedModelId: requested, note: null }
+  }
+
+  const models = await listGoogleModels({ apiKey, fetchImpl, timeoutMs })
+  const byId = new Map<string, GoogleModelInfo>()
+  for (const model of models) {
+    byId.set(normalizeModelId(model.name), model)
+  }
+
+  const exact = byId.get(requested)
+  const strippedPreview = requested.endsWith('-preview') ? requested.slice(0, -'-preview'.length) : null
+  const noPreview = strippedPreview ? byId.get(strippedPreview) : null
+
+  const candidate = exact ?? noPreview
+  if (candidate) {
+    const methods = Array.isArray(candidate.supportedGenerationMethods)
+      ? candidate.supportedGenerationMethods
+      : []
+    if (methods.includes(requireMethod)) {
+      if (noPreview && !exact) {
+        return {
+          resolvedModelId: normalizeModelId(candidate.name),
+          note: `Resolved ${requestedModelId} → ${normalizeModelId(candidate.name)} via ListModels`,
+        }
+      }
+      return { resolvedModelId: normalizeModelId(candidate.name), note: null }
+    }
+
+    throw new Error(
+      `Google model ${normalizeModelId(candidate.name)} exists but does not support ${requireMethod}.`
+    )
+  }
+
+  const suggestions = pickSuggestions(models, 5)
+  const hint =
+    suggestions.length > 0
+      ? `Try one of: ${suggestions.map((id) => `google/${id}`).join(', ')}`
+      : 'Run ListModels to see available models for your key.'
+
+  throw new Error(
+    `Google model ${requestedModelId} is not available via the Gemini API (v1beta) for this API key. ${hint}`
+  )
+}
+
