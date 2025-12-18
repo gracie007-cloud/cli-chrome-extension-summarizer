@@ -2,9 +2,10 @@ import { Command, CommanderError } from 'commander'
 import { render as renderMarkdownAnsi } from 'markdansi'
 import { loadSummarizeConfig } from './config.js'
 import { createLinkPreviewClient } from './content/index.js'
-import { buildRunCostReport, parsePricingJson } from './costs.js'
-import type { LlmCall, PricingConfig } from './costs.js'
+import { buildRunCostReport } from './costs.js'
+import type { LlmCall } from './costs.js'
 import { createFirecrawlScraper } from './firecrawl.js'
+import { loadLiteLlmCatalog, resolveLiteLlmPricingForModelId } from './pricing/litellm.js'
 import {
   parseDurationMs,
   parseFirecrawlMode,
@@ -468,25 +469,31 @@ export async function runCli(
   const googleConfigured = typeof googleApiKey === 'string' && googleApiKey.length > 0
   const xaiConfigured = typeof xaiApiKey === 'string' && xaiApiKey.length > 0
 
-  const pricing = (() => {
-    const fromConfig = config?.pricing ?? null
-    const fromEnvRaw =
-      typeof env.SUMMARIZE_PRICING_JSON === 'string' ? env.SUMMARIZE_PRICING_JSON : null
-    if (!fromEnvRaw || fromEnvRaw.trim().length === 0) {
-      return fromConfig
-    }
-    const fromEnv = parsePricingJson(fromEnvRaw)
-    return {
-      llm: { ...(fromConfig?.llm ?? {}), ...(fromEnv.llm ?? {}) },
-      firecrawlUsdPerRequest:
-        fromEnv.firecrawlUsdPerRequest ?? fromConfig?.firecrawlUsdPerRequest,
-      apifyUsdPerRequest: fromEnv.apifyUsdPerRequest ?? fromConfig?.apifyUsdPerRequest,
-    } satisfies PricingConfig
-  })()
-
   const llmCalls: LlmCall[] = []
   let firecrawlRequests = 0
   let apifyRequests = 0
+
+  let liteLlmCatalogPromise: ReturnType<typeof loadLiteLlmCatalog> | null = null
+  const getLiteLlmCatalog = async () => {
+    if (!liteLlmCatalogPromise) {
+      liteLlmCatalogPromise = loadLiteLlmCatalog({
+        env,
+        fetchImpl: globalThis.fetch.bind(globalThis),
+      })
+    }
+    const result = await liteLlmCatalogPromise
+    return result.catalog
+  }
+  const buildReport = async () => {
+    const catalog = await getLiteLlmCatalog()
+    return buildRunCostReport({
+      llmCalls,
+      firecrawlRequests,
+      apifyRequests,
+      resolveLlmPricing: (modelId) =>
+        catalog ? resolveLiteLlmPricingForModelId(catalog, modelId) : null,
+    })
+  }
 
   const trackedFetch: typeof fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url =
@@ -722,11 +729,8 @@ export async function runCli(
 
   if (extractOnly) {
     if (json) {
-      const costReport =
-        cost || verbose
-          ? buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing })
-          : null
-      const finishReport = buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing })
+      const finishReport = await buildReport()
+      const costReport = cost || verbose ? finishReport : null
       const payload: JsonOutput = {
         input: {
           url,
@@ -768,17 +772,16 @@ export async function runCli(
       return
     }
 
-    if (cost || verbose) {
-      writeCostReport(buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing }))
-    }
     stdout.write(`${extracted.content}\n`)
+    const report = await buildReport()
+    if (cost || verbose) writeCostReport(report)
     writeFinishLine({
       stderr,
       elapsedMs: Date.now() - runStartedAtMs,
       model,
       strategy: 'none',
       chunkCount: null,
-      report: buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing }),
+      report,
     })
     return
   }
@@ -1013,11 +1016,8 @@ export async function runCli(
   }
 
   if (json) {
-    const costReport =
-      cost || verbose
-        ? buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing })
-        : null
-    const finishReport = buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing })
+    const finishReport = await buildReport()
+    const costReport = cost || verbose ? finishReport : null
     const payload: JsonOutput = {
       input: {
         url,
@@ -1082,15 +1082,14 @@ export async function runCli(
     }
   }
 
-  if (cost || verbose) {
-    writeCostReport(buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing }))
-  }
+  const report = await buildReport()
+  if (cost || verbose) writeCostReport(report)
   writeFinishLine({
     stderr,
     elapsedMs: Date.now() - runStartedAtMs,
     model: parsedModel.canonical,
     strategy,
     chunkCount,
-    report: buildRunCostReport({ llmCalls, firecrawlRequests, apifyRequests, pricing }),
+    report,
   })
 }

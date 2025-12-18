@@ -9,13 +9,9 @@ export type LlmCall = {
   purpose: 'summary' | 'chunk-notes' | 'markdown'
 }
 
-export type PricingConfig = {
-  llm?: Record<
-    string,
-    { inputUsdPer1MTokens: number; outputUsdPer1MTokens: number } | undefined
-  >
-  firecrawlUsdPerRequest?: number
-  apifyUsdPerRequest?: number
+export type LlmPerTokenPricing = {
+  inputUsdPerToken: number
+  outputUsdPerToken: number
 }
 
 export type RunCostReport = {
@@ -49,18 +45,15 @@ function sumOrNull(values: Array<number | null>): number | null {
 
 function estimateLlmUsd({
   pricing,
-  model,
   usage,
 }: {
-  pricing: PricingConfig | null
-  model: string
+  pricing: LlmPerTokenPricing | null
   usage: { promptTokens: number | null; completionTokens: number | null }
 }): number | null {
-  const entry = pricing?.llm?.[model]
-  if (!entry) return null
+  if (!pricing) return null
   if (usage.promptTokens === null || usage.completionTokens === null) return null
-  const inputUsd = (usage.promptTokens / 1_000_000) * entry.inputUsdPer1MTokens
-  const outputUsd = (usage.completionTokens / 1_000_000) * entry.outputUsdPer1MTokens
+  const inputUsd = usage.promptTokens * pricing.inputUsdPerToken
+  const outputUsd = usage.completionTokens * pricing.outputUsdPerToken
   return inputUsd + outputUsd
 }
 
@@ -68,12 +61,12 @@ export function buildRunCostReport({
   llmCalls,
   firecrawlRequests,
   apifyRequests,
-  pricing,
+  resolveLlmPricing,
 }: {
   llmCalls: LlmCall[]
   firecrawlRequests: number
   apifyRequests: number
-  pricing: PricingConfig | null
+  resolveLlmPricing: (modelId: string) => LlmPerTokenPricing | null
 }): RunCostReport {
   const llmMap = new Map<
     string,
@@ -115,8 +108,7 @@ export function buildRunCostReport({
     const completionTokens = sumOrNull(row.completionTokens)
     const totalTokens = sumOrNull(row.totalTokens)
     const estimatedUsd = estimateLlmUsd({
-      pricing,
-      model: row.model,
+      pricing: resolveLlmPricing(row.model),
       usage: { promptTokens, completionTokens },
     })
     return {
@@ -130,14 +122,8 @@ export function buildRunCostReport({
     }
   })
 
-  const firecrawlEstimatedUsd =
-    typeof pricing?.firecrawlUsdPerRequest === 'number' && Number.isFinite(pricing.firecrawlUsdPerRequest)
-      ? pricing.firecrawlUsdPerRequest * firecrawlRequests
-      : null
-  const apifyEstimatedUsd =
-    typeof pricing?.apifyUsdPerRequest === 'number' && Number.isFinite(pricing.apifyUsdPerRequest)
-      ? pricing.apifyUsdPerRequest * apifyRequests
-      : null
+  const firecrawlEstimatedUsd = null
+  const apifyEstimatedUsd = null
 
   const totalEstimatedUsd = (() => {
     const pieces: Array<number | null> = [
@@ -158,50 +144,3 @@ export function buildRunCostReport({
     totalEstimatedUsd,
   }
 }
-
-export function parsePricingJson(input: string): PricingConfig {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(input)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    throw new Error(`Invalid JSON pricing config: ${message}`)
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('Invalid pricing config: expected an object at the top level')
-  }
-
-  const obj = parsed as Record<string, unknown>
-  const pricing: PricingConfig = {}
-
-  const llm = obj.llm
-  if (llm && typeof llm === 'object' && !Array.isArray(llm)) {
-    const llmObj = llm as Record<string, unknown>
-    const normalized: PricingConfig['llm'] = {}
-    for (const [model, value] of Object.entries(llmObj)) {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) continue
-      const row = value as Record<string, unknown>
-      const inputUsdPer1MTokens =
-        typeof row.inputUsdPer1MTokens === 'number' && Number.isFinite(row.inputUsdPer1MTokens)
-          ? row.inputUsdPer1MTokens
-          : null
-      const outputUsdPer1MTokens =
-        typeof row.outputUsdPer1MTokens === 'number' && Number.isFinite(row.outputUsdPer1MTokens)
-          ? row.outputUsdPer1MTokens
-          : null
-      if (inputUsdPer1MTokens === null || outputUsdPer1MTokens === null) continue
-      normalized[model] = { inputUsdPer1MTokens, outputUsdPer1MTokens }
-    }
-    pricing.llm = normalized
-  }
-
-  if (typeof obj.firecrawlUsdPerRequest === 'number' && Number.isFinite(obj.firecrawlUsdPerRequest)) {
-    pricing.firecrawlUsdPerRequest = obj.firecrawlUsdPerRequest
-  }
-  if (typeof obj.apifyUsdPerRequest === 'number' && Number.isFinite(obj.apifyUsdPerRequest)) {
-    pricing.apifyUsdPerRequest = obj.apifyUsdPerRequest
-  }
-
-  return pricing
-}
-

@@ -134,26 +134,14 @@ By default the CLI uses `xai/grok-4-fast-non-reasoning`, so you’ll want `XAI_A
 
 ### Cost reporting (optional)
 
-`--cost` prints token usage plus *estimated* costs for this run. We can always count requests (Firecrawl/Apify) and tokens (LLMs), but we cannot reliably infer USD without prices.
+`--cost` prints token usage plus an *estimated* USD cost for LLM calls.
 
-Provide prices via either:
+Pricing is automatically derived from the LiteLLM model catalog and cached locally under `~/.summarize/cache/`.
 
-- `SUMMARIZE_PRICING_JSON` (JSON string), or
-- `~/.summarize/config.json`:
+Notes:
 
-```json
-{
-  "pricing": {
-    "llm": {
-      "openai/gpt-5.2": { "inputUsdPer1MTokens": 0, "outputUsdPer1MTokens": 0 },
-      "xai/grok-4-fast-non-reasoning": { "inputUsdPer1MTokens": 0, "outputUsdPer1MTokens": 0 },
-      "google/gemini-3-flash-preview": { "inputUsdPer1MTokens": 0, "outputUsdPer1MTokens": 0 }
-    },
-    "firecrawlUsdPerRequest": 0,
-    "apifyUsdPerRequest": 0
-  }
-}
-```
+- Token counts and request counts are the source of truth.
+- USD is best-effort and can drift when providers change pricing.
 
 ### Apify (optional YouTube fallback)
 
