@@ -33,10 +33,27 @@ export async function runCliMain({
   handlePipeErrors(stdout, exit)
   handlePipeErrors(stderr, exit)
 
+  const verbose = argv.includes('--verbose') || argv.includes('--verbose=true')
+
   try {
     await runCli(argv, { env, fetch, stdout, stderr })
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error)
+    if ((stderr as unknown as { isTTY?: boolean }).isTTY) {
+      stderr.write('\n')
+    }
+
+    if (verbose && error instanceof Error && typeof error.stack === 'string') {
+      stderr.write(`${error.stack}\n`)
+      const cause = (error as Error & { cause?: unknown }).cause
+      if (cause instanceof Error && typeof cause.stack === 'string') {
+        stderr.write(`Caused by: ${cause.stack}\n`)
+      }
+      setExitCode(1)
+      return
+    }
+
+    const message =
+      error instanceof Error ? error.message : error ? String(error) : 'Unknown error'
     stderr.write(`${message}\n`)
     setExitCode(1)
   }

@@ -181,6 +181,16 @@ function ansi(code: string, input: string, enabled: boolean): string {
   return `\u001b[${code}m${input}\u001b[0m`
 }
 
+function isUnsupportedAttachmentError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const err = error as { name?: unknown; message?: unknown }
+  const name = typeof err.name === 'string' ? err.name : ''
+  const message = typeof err.message === 'string' ? err.message : ''
+  if (name.toLowerCase().includes('unsupportedfunctionality')) return true
+  if (message.toLowerCase().includes('functionality not supported')) return true
+  return false
+}
+
 function attachRichHelp(
   program: Command,
   env: Record<string, string | undefined>,
@@ -658,15 +668,26 @@ export async function runCli(
     let summary: string
 
     if (streamingEnabled) {
-      const streamResult = await streamTextWithModelId({
-        modelId: parsedModel.canonical,
-        apiKeys: apiKeysForLlm,
-        prompt: messages,
-        temperature: 0,
-        maxOutputTokens,
-        timeoutMs,
-        fetchImpl: trackedFetch,
-      })
+      let streamResult: Awaited<ReturnType<typeof streamTextWithModelId>>
+      try {
+        streamResult = await streamTextWithModelId({
+          modelId: parsedModel.canonical,
+          apiKeys: apiKeysForLlm,
+          prompt: messages,
+          temperature: 0,
+          maxOutputTokens,
+          timeoutMs,
+          fetchImpl: trackedFetch,
+        })
+      } catch (error) {
+        if (isUnsupportedAttachmentError(error)) {
+          throw new Error(
+            `Model ${parsedModel.canonical} does not support attaching files of type ${attachment.mediaType}. Try a different --model (e.g. google/gemini-2.0-flash).`,
+            { cause: error }
+          )
+        }
+        throw error
+      }
 
       let streamed = ''
       const liveRenderer = shouldLiveRenderSummary
@@ -727,14 +748,25 @@ export async function runCli(
         summaryAlreadyPrinted = true
       }
     } else {
-      const result = await summarizeWithModelId({
-        modelId: parsedModel.canonical,
-        prompt: messages,
-        maxOutputTokens,
-        timeoutMs,
-        fetchImpl: trackedFetch,
-        apiKeys: apiKeysForLlm,
-      })
+      let result: Awaited<ReturnType<typeof summarizeWithModelId>>
+      try {
+        result = await summarizeWithModelId({
+          modelId: parsedModel.canonical,
+          prompt: messages,
+          maxOutputTokens,
+          timeoutMs,
+          fetchImpl: trackedFetch,
+          apiKeys: apiKeysForLlm,
+        })
+      } catch (error) {
+        if (isUnsupportedAttachmentError(error)) {
+          throw new Error(
+            `Model ${parsedModel.canonical} does not support attaching files of type ${attachment.mediaType}. Try a different --model (e.g. google/gemini-2.0-flash).`,
+            { cause: error }
+          )
+        }
+        throw error
+      }
       llmCalls.push({
         provider: result.provider,
         model: result.canonicalModelId,
