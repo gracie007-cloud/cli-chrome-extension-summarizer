@@ -115,4 +115,67 @@ describe('cli asset inputs (local file)', () => {
 
     globalFetchSpy.mockRestore()
   })
+
+  it('inlines text files into the prompt instead of attaching a file part', async () => {
+    streamTextMock.mockClear()
+
+    const root = mkdtempSync(join(tmpdir(), 'summarize-asset-local-txt-'))
+    const cacheDir = join(root, '.summarize', 'cache')
+    mkdirSync(cacheDir, { recursive: true })
+
+    writeFileSync(
+      join(cacheDir, 'litellm-model_prices_and_context_window.json'),
+      JSON.stringify({
+        'gpt-5.2': { input_cost_per_token: 0.00000175, output_cost_per_token: 0.000014 },
+      }),
+      'utf8'
+    )
+    writeFileSync(
+      join(cacheDir, 'litellm-model_prices_and_context_window.meta.json'),
+      JSON.stringify({ fetchedAtMs: Date.now() }),
+      'utf8'
+    )
+
+    const globalFetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      throw new Error('unexpected LiteLLM catalog fetch')
+    })
+
+    const txtPath = join(root, 'test.txt')
+    writeFileSync(txtPath, 'Hello from text file.\nSecond line.\n', 'utf8')
+
+    const stdout = collectStream()
+    const stderr = collectStream()
+
+    await runCli(
+      [
+        '--model',
+        'openai/gpt-5.2',
+        '--timeout',
+        '2s',
+        '--stream',
+        'on',
+        '--render',
+        'plain',
+        txtPath,
+      ],
+      {
+        env: { HOME: root, OPENAI_API_KEY: 'test' },
+        fetch: vi.fn(async () => {
+          throw new Error('unexpected fetch')
+        }) as unknown as typeof fetch,
+        stdout: stdout.stream,
+        stderr: stderr.stream,
+      }
+    )
+
+    expect(stdout.getText()).toContain('OK')
+    expect(streamTextMock).toHaveBeenCalledTimes(1)
+
+    const call = streamTextMock.mock.calls[0]?.[0] as { prompt?: unknown; messages?: unknown }
+    expect(typeof call.prompt).toBe('string')
+    expect(String(call.prompt)).toContain('Hello from text file.')
+    expect(call.messages).toBeUndefined()
+
+    globalFetchSpy.mockRestore()
+  })
 })

@@ -197,6 +197,44 @@ function isUnsupportedAttachmentError(error: unknown): boolean {
   return false
 }
 
+function isTextLikeMediaType(mediaType: string): boolean {
+  const mt = mediaType.toLowerCase()
+  if (mt.startsWith('text/')) return true
+  // Common “text but not text/*” types we want to inline instead of attaching as a file part.
+  return (
+    mt === 'application/json' ||
+    mt === 'application/xml' ||
+    mt === 'application/x-yaml' ||
+    mt === 'application/yaml' ||
+    mt === 'application/toml' ||
+    mt === 'application/rtf' ||
+    mt === 'application/javascript'
+  )
+}
+
+function buildAssetPromptPayload({
+  promptText,
+  attachment,
+}: {
+  promptText: string
+  attachment: Awaited<ReturnType<typeof loadLocalAsset>>['attachment']
+}): string | Array<ModelMessage> {
+  if (attachment.part.type === 'file' && isTextLikeMediaType(attachment.mediaType)) {
+    const data = (attachment.part as { data?: unknown }).data
+    const content =
+      typeof data === 'string'
+        ? data
+        : data instanceof Uint8Array
+          ? new TextDecoder().decode(data)
+          : ''
+
+    const header = `File: ${attachment.filename ?? 'unknown'} (${attachment.mediaType})`
+    return `${promptText}\n\n---\n${header}\n\n${content}`.trim()
+  }
+
+  return buildAssetPromptMessages({ promptText, attachment })
+}
+
 function assertProviderSupportsAttachment({
   provider,
   modelId,
@@ -801,7 +839,7 @@ export async function runCli(
       requested: maxOutputTokens,
     })
 
-    const messages = buildAssetPromptMessages({ promptText, attachment })
+    const promptPayload = buildAssetPromptPayload({ promptText, attachment })
 
     const shouldBufferSummaryForRender =
       streamingEnabledForCall && effectiveRenderMode === 'md' && isRichTty(stdout)
@@ -819,7 +857,7 @@ export async function runCli(
         streamResult = await streamTextWithModelId({
           modelId: parsedModelEffective.canonical,
           apiKeys: apiKeysForLlm,
-          prompt: messages,
+          prompt: promptPayload,
           temperature: 0,
           maxOutputTokens: maxOutputTokensCapped,
           timeoutMs,
@@ -916,7 +954,7 @@ export async function runCli(
       try {
         result = await summarizeWithModelId({
           modelId: parsedModelEffective.canonical,
-          prompt: messages,
+          prompt: promptPayload,
           maxOutputTokens: maxOutputTokensCapped,
           timeoutMs,
           fetchImpl: trackedFetch,
