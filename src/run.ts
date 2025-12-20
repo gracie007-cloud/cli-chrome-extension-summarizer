@@ -1574,7 +1574,7 @@ export async function runCli(
     if (!progressEnabled) return null
 
     const state: {
-      phase: 'fetching' | 'firecrawl' | 'bird' | 'idle'
+      phase: 'fetching' | 'firecrawl' | 'bird' | 'nitter' | 'idle'
       htmlDownloadedBytes: number
       htmlTotalBytes: number | null
       fetchStartedAtMs: number | null
@@ -1663,6 +1663,8 @@ export async function runCli(
             }
           | { kind: 'bird-start'; url: string }
           | { kind: 'bird-done'; url: string; ok: boolean; textBytes: number | null }
+          | { kind: 'nitter-start'; url: string }
+          | { kind: 'nitter-done'; url: string; ok: boolean; textBytes: number | null }
       ) => {
         if (event.kind === 'fetch-html-start') {
           state.phase = 'fetching'
@@ -1697,6 +1699,24 @@ export async function runCli(
             return
           }
           updateSpinner('Bird: failed; fallback…', { force: true })
+          return
+        }
+
+        if (event.kind === 'nitter-start') {
+          state.phase = 'nitter'
+          stopTicker()
+          updateSpinner('Nitter: fetching…', { force: true })
+          return
+        }
+
+        if (event.kind === 'nitter-done') {
+          state.phase = 'nitter'
+          stopTicker()
+          if (event.ok && typeof event.textBytes === 'number') {
+            updateSpinner(`Nitter: got ${formatBytes(event.textBytes)}…`, { force: true })
+            return
+          }
+          updateSpinner('Nitter: failed; fallback…', { force: true })
           return
         }
 
@@ -1756,6 +1776,9 @@ export async function runCli(
     const viaSources: string[] = []
     if (extracted.diagnostics.strategy === 'bird') {
       viaSources.push('bird')
+    }
+    if (extracted.diagnostics.strategy === 'nitter') {
+      viaSources.push('Nitter')
     }
     if (extracted.diagnostics.firecrawl.used) {
       viaSources.push('Firecrawl')

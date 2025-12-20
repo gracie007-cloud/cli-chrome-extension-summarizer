@@ -11,6 +11,7 @@
 - Cap summaries to the extracted content length when a requested size is larger.
 - Skip summarization for tweets when extracted content is already below the requested length.
 - Use bird CLI for tweet extraction when available and surface it in the status line.
+- Fall back to Nitter for tweet extraction when bird fails; report a clear error when tweet data is unavailable.
 - Compute cost totals via tokentally’s tally helpers.
 - Improve fetch spinner with elapsed time and throughput updates.
 - Show Firecrawl fallback status and reason when scraping kicks in.

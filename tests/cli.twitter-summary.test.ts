@@ -14,10 +14,12 @@ const noopStream = () =>
 
 const tweetUrl = 'https://x.com/user/status/123'
 
+const nitterUrl = 'https://nitter.net/user/status/123'
+
 const buildFetchMock = (html: string) =>
   vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === 'string' ? input : input.url
-    if (url === tweetUrl) {
+    if (url === tweetUrl || url === nitterUrl) {
       return new Response(html, {
         status: 200,
         headers: { 'Content-Type': 'text/html' },

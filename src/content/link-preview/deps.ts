@@ -22,6 +22,8 @@ export type LinkPreviewProgressEvent =
       markdownBytes: number | null
       htmlBytes: number | null
     }
+  | { kind: 'nitter-start'; url: string }
+  | { kind: 'nitter-done'; url: string; ok: boolean; textBytes: number | null }
   | { kind: 'bird-start'; url: string }
   | { kind: 'bird-done'; url: string; ok: boolean; textBytes: number | null }
 
