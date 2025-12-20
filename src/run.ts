@@ -106,7 +106,7 @@ function buildProgram() {
     )
     .option(
       '--firecrawl <mode>',
-      'Firecrawl usage: off, auto (fallback), always (try Firecrawl first). Note: in --extract-only website mode, defaults to always when FIRECRAWL_API_KEY is set.',
+      'Firecrawl usage: off, auto (fallback), always (try Firecrawl first).',
       'auto'
     )
     .option(
@@ -664,9 +664,6 @@ export async function runCli(
   const shouldComputeReport = metricsEnabled
 
   const isYoutubeUrl = typeof url === 'string' ? /youtube\.com|youtu\.be/i.test(url) : false
-  const firecrawlExplicitlySet = normalizedArgv.some(
-    (arg) => arg === '--firecrawl' || arg.startsWith('--firecrawl=')
-  )
   const requestedFirecrawlMode = parseFirecrawlMode(program.opts().firecrawl as string)
   const modelArg =
     typeof program.opts().model === 'string' ? (program.opts().model as string) : null
@@ -1362,12 +1359,7 @@ export async function runCli(
     throw new Error('Only HTTP and HTTPS URLs can be summarized')
   }
 
-  const firecrawlMode = (() => {
-    if (extractOnly && !isYoutubeUrl && !firecrawlExplicitlySet && firecrawlConfigured) {
-      return 'always'
-    }
-    return requestedFirecrawlMode
-  })()
+  const firecrawlMode = requestedFirecrawlMode
   if (firecrawlMode === 'always' && !firecrawlConfigured) {
     throw new Error('--firecrawl always requires FIRECRAWL_API_KEY')
   }

@@ -16,6 +16,7 @@
 - Merge cumulative streaming chunks correctly and keep stream-merge for streaming output.
 - Fall back to non-streaming when streaming requests time out.
 - Preserve parentheses in URL paths when resolving inputs.
+- Stop forcing Firecrawl for --extract-only; only use it as a fallback.
 
 ### Tests
 

@@ -6,20 +6,20 @@ import { runCli } from '../src/run.js'
 describe('cli --extract-only', () => {
   it('prints full extracted content (no truncation) and never calls OpenAI', async () => {
     const body = 'A'.repeat(60_000)
-    const markdown = `# Example\n\n${body}`
-
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === 'string' ? input : input.url
-      if (url === 'https://api.firecrawl.dev/v1/scrape') {
-        const parsed = init?.body ? (JSON.parse(String(init.body)) as { url?: unknown }) : null
-        expect(parsed?.url).toBe('https://example.com')
-        return Response.json(
-          { success: true, data: { markdown, html: null, metadata: { title: 'Example' } } },
-          { status: 200 }
-        )
+      void init
+      if (url === 'https://example.com') {
+        const html =
+          '<!doctype html><html><head><title>Example</title></head>' +
+          `<body><article>${body}</article></body></html>`
+        return new Response(html, { status: 200, headers: { 'Content-Type': 'text/html' } })
       }
       if (url === 'https://api.openai.com/v1/chat/completions') {
         throw new Error('Unexpected OpenAI call in --extract-only mode')
+      }
+      if (url === 'https://api.firecrawl.dev/v1/scrape') {
+        throw new Error('Unexpected Firecrawl call in --extract-only mode')
       }
       throw new Error(`Unexpected fetch call: ${url}`)
     })
@@ -43,7 +43,7 @@ describe('cli --extract-only', () => {
       }),
     })
 
-    expect(stdoutText.startsWith('# Example')).toBe(true)
+    expect(stdoutText).toContain(body.slice(0, 200))
     expect(stdoutText.length).toBeGreaterThanOrEqual(59_000)
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
