@@ -36,6 +36,11 @@
 
 - Add a tokenization benchmark script.
 
+### Fixes
+
+- Preserve balanced parentheses/brackets in URL paths (e.g. Wikipedia titles).
+- Avoid Firecrawl fallback when block keywords only appear in scripts/styles.
+
 ## 0.1.1 - 2025-12-19
 
 ### Fixes
