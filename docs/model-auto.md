@@ -4,7 +4,7 @@
 
 ## What it does
 
-- Builds a ranked list of model “attempts” (native first, optional OpenRouter fallback).
+- Builds an ordered list of model “attempts” from `candidates[]` (native first, optional OpenRouter fallback).
 - Skips attempts that don’t have the required API key configured.
 - On any request error, tries the next attempt.
 - If no model is usable, prints the extracted text (no LLM summary).
@@ -32,15 +32,11 @@ OpenRouter provider ordering:
 - Global default: `OPENROUTER_PROVIDERS="groq,google-vertex,..."` (optional)
 - Per-candidate: `openrouterProviders` in config (optional)
 
-## How selection is ranked
+## How selection works
 
-Signals:
-
-- `kind`: `text|website|youtube|file|image|video`
-- `promptTokens`: estimated from the extracted text
-- `desiredOutputTokens`: from `--max-output-tokens` (or inferred from `--length`)
-- LiteLLM catalog (via `tokentally`): max input tokens + pricing (cache: `~/.summarize/cache/`)
-- Candidate weights: `score.quality|speed|cost` (config)
+- Uses the order you provide in `auto.rules[].candidates[]`.
+- Filters out candidates that can’t fit the prompt (max input tokens, LiteLLM catalog).
+- For a native candidate, auto mode may add an OpenRouter fallback attempt right after it (when `OPENROUTER_API_KEY` is set and video understanding isn’t required).
 
 Notes:
 
@@ -64,14 +60,14 @@ Example:
       {
         "when": { "kind": "video" },
         "candidates": [
-          { "model": "google/gemini-3-flash-preview", "score": { "quality": 8, "speed": 8, "cost": 8 } }
+          { "model": "google/gemini-3-flash-preview" }
         ]
       },
       {
         "when": { "kind": "website" },
         "candidates": [
-          { "model": "openai/gpt-5-nano", "score": { "quality": 7, "speed": 9, "cost": 10 } },
-          { "model": "xai/grok-4-fast-non-reasoning", "score": { "quality": 7, "speed": 8, "cost": 8 } }
+          { "model": "openai/gpt-5-nano" },
+          { "model": "xai/grok-4-fast-non-reasoning" }
         ]
       },
       {
@@ -84,4 +80,3 @@ Example:
   }
 }
 ```
-

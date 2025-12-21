@@ -4,6 +4,27 @@ import type { SummarizeConfig } from '../src/config.js'
 import { buildAutoModelAttempts } from '../src/model-auto.js'
 
 describe('auto model selection', () => {
+  it('preserves candidate order (native then OpenRouter fallback)', () => {
+    const config: SummarizeConfig = {
+      auto: { rules: [{ candidates: [{ model: 'openai/gpt-5.2' }, { model: 'xai/grok-4-fast-non-reasoning' }] }] },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+    })
+
+    expect(attempts[0]?.userModelId).toBe('openai/gpt-5.2')
+    expect(attempts[1]?.userModelId).toBe('openrouter/openai/gpt-5.2')
+    expect(attempts[2]?.userModelId).toBe('xai/grok-4-fast-non-reasoning')
+    expect(attempts[3]?.userModelId).toBe('openrouter/xai/grok-4-fast-non-reasoning')
+  })
+
   it('adds an OpenRouter fallback attempt when OPENROUTER_API_KEY is set', () => {
     const config: SummarizeConfig = {
       auto: { rules: [{ candidates: [{ model: 'openai/gpt-5.2' }] }] },
@@ -61,4 +82,3 @@ describe('auto model selection', () => {
     expect(attempts.some((a) => a.userModelId === 'openai/gpt-5-nano')).toBe(false)
   })
 })
-

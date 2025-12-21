@@ -20,7 +20,6 @@ export type AutoModelAttempt = {
   openrouterProviders: string[] | null
   forceOpenRouter: boolean
   requiredEnv: 'XAI_API_KEY' | 'OPENAI_API_KEY' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY' | 'OPENROUTER_API_KEY'
-  score: number
   debug: string
 }
 
@@ -28,39 +27,39 @@ const DEFAULT_RULES: AutoRule[] = [
   {
     when: { kind: 'video' },
     candidates: [
-      { model: 'google/gemini-3-flash-preview', score: { quality: 8, speed: 8, cost: 8 } },
-      { model: 'google/gemini-2.5-flash-lite-preview-09-2025', score: { quality: 7, speed: 9, cost: 9 } },
+      { model: 'google/gemini-3-flash-preview' },
+      { model: 'google/gemini-2.5-flash-lite-preview-09-2025' },
     ],
   },
   {
     when: { kind: 'youtube' },
     candidates: [
-      { model: 'openai/gpt-5-nano', score: { quality: 7, speed: 9, cost: 10 } },
-      { model: 'google/gemini-3-flash-preview', score: { quality: 7, speed: 9, cost: 8 } },
-      { model: 'xai/grok-4-fast-non-reasoning', score: { quality: 7, speed: 8, cost: 8 } },
+      { model: 'openai/gpt-5-nano' },
+      { model: 'google/gemini-3-flash-preview' },
+      { model: 'xai/grok-4-fast-non-reasoning' },
     ],
   },
   {
     when: { kind: 'website' },
     candidates: [
-      { model: 'openai/gpt-5-nano', score: { quality: 7, speed: 9, cost: 10 } },
-      { model: 'openai/gpt-5.2', score: { quality: 9, speed: 7, cost: 4 } },
-      { model: 'xai/grok-4-fast-non-reasoning', score: { quality: 7, speed: 8, cost: 8 } },
+      { model: 'openai/gpt-5-nano' },
+      { model: 'openai/gpt-5.2' },
+      { model: 'xai/grok-4-fast-non-reasoning' },
     ],
   },
   {
     when: { kind: 'text' },
     candidates: [
-      { model: 'openai/gpt-5-nano', score: { quality: 7, speed: 9, cost: 10 } },
-      { model: 'openai/gpt-5.2', score: { quality: 9, speed: 7, cost: 4 } },
-      { model: 'xai/grok-4-fast-non-reasoning', score: { quality: 7, speed: 8, cost: 8 } },
+      { model: 'openai/gpt-5-nano' },
+      { model: 'openai/gpt-5.2' },
+      { model: 'xai/grok-4-fast-non-reasoning' },
     ],
   },
   {
     candidates: [
-      { model: 'openai/gpt-5-nano', score: { quality: 7, speed: 9, cost: 10 } },
-      { model: 'google/gemini-3-flash-preview', score: { quality: 7, speed: 9, cost: 8 } },
-      { model: 'xai/grok-4-fast-non-reasoning', score: { quality: 7, speed: 8, cost: 8 } },
+      { model: 'openai/gpt-5-nano' },
+      { model: 'google/gemini-3-flash-preview' },
+      { model: 'xai/grok-4-fast-non-reasoning' },
     ],
   },
 ]
@@ -116,18 +115,6 @@ function estimateCostUsd({
   return Number.isFinite(cost) ? cost : null
 }
 
-function baseScoreFromCandidate(candidate: AutoRuleCandidate): { quality: number; speed: number; cost: number } {
-  const clamp = (n: unknown, fallback: number) => {
-    const v = typeof n === 'number' && Number.isFinite(n) ? n : fallback
-    return Math.max(0, Math.min(10, v))
-  }
-  return {
-    quality: clamp(candidate.score?.quality, 6),
-    speed: clamp(candidate.score?.speed, 6),
-    cost: clamp(candidate.score?.cost, 6),
-  }
-}
-
 function isVideoUnderstandingCapable(modelId: string): boolean {
   try {
     const parsed = parseGatewayStyleModelId(normalizeGatewayStyleModelId(modelId))
@@ -181,18 +168,12 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
         outputTokens: input.desiredOutputTokens,
       })
 
-      const base = baseScoreFromCandidate(candidate)
-      const costWeight = base.cost
-      const costPenalty = typeof estimated === 'number' ? estimated * costWeight * 1e9 : 0
-      const transportBonus = options.openrouter ? 0 : 50
-      const totalScore = Math.round(base.quality * 1000 + base.speed * 100 + transportBonus - costPenalty)
-
       const userModelId = options.openrouter ? modelId : normalizeGatewayStyleModelId(modelId)
       const openrouterModelId = options.openrouter ? modelId.slice('openrouter/'.length).trim() : null
       const llmModelId = options.openrouter ? `openai/${openrouterModelId}` : normalizeGatewayStyleModelId(modelId)
       const debugParts = [
         `model=${options.openrouter ? `openrouter/${openrouterModelId}` : userModelId}`,
-        `score=${totalScore}`,
+        `order=${attempts.length + 1}`,
         `key=${hasKey ? 'yes' : 'no'}(${required})`,
         `promptTok=${typeof input.promptTokens === 'number' ? input.promptTokens : 'unknown'}`,
         `maxIn=${typeof maxIn === 'number' ? maxIn : 'unknown'}`,
@@ -205,7 +186,6 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
         openrouterProviders: options.openrouterProviders,
         forceOpenRouter: options.openrouter,
         requiredEnv: required,
-        score: totalScore,
         debug: debugParts.join(' '),
       })
     }
@@ -227,8 +207,6 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
     }
   }
 
-  attempts.sort((a, b) => b.score - a.score)
-
   const seen = new Set<string>()
   const unique: AutoModelAttempt[] = []
   for (const a of attempts) {
@@ -239,4 +217,3 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
   }
   return unique
 }
-

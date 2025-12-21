@@ -43,8 +43,8 @@ Additional keys (optional):
       {
         "when": { "kind": "website" },
         "candidates": [
-          { "model": "openai/gpt-5-nano", "score": { "quality": 7, "speed": 9, "cost": 10 } },
-          { "model": "xai/grok-4-fast-non-reasoning", "score": { "quality": 7, "speed": 8, "cost": 8 } }
+          { "model": "openai/gpt-5-nano" },
+          { "model": "xai/grok-4-fast-non-reasoning" }
         ]
       }
     ]
