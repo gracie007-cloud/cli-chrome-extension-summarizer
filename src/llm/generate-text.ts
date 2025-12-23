@@ -19,6 +19,11 @@ export type LlmTokenUsage = {
   totalTokens: number | null
 }
 
+function assertNonEmptyText(text: string, modelId: string): void {
+  if (text.trim().length > 0) return
+  throw new Error(`LLM returned an empty summary (model ${modelId}).`)
+}
+
 type RetryNotice = {
   attempt: number
   maxRetries: number
@@ -220,6 +225,7 @@ export async function generateTextWithModelId({
           ...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
           abortSignal: controller.signal,
         })
+        assertNonEmptyText(result.text, parsed.canonical)
         return {
           text: result.text,
           canonicalModelId: parsed.canonical,
@@ -244,6 +250,7 @@ export async function generateTextWithModelId({
           ...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
           abortSignal: controller.signal,
         })
+        assertNonEmptyText(result.text, parsed.canonical)
         return {
           text: result.text,
           canonicalModelId: parsed.canonical,
@@ -265,6 +272,7 @@ export async function generateTextWithModelId({
           ...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
           abortSignal: controller.signal,
         })
+        assertNonEmptyText(result.text, parsed.canonical)
         return {
           text: result.text,
           canonicalModelId: parsed.canonical,
@@ -298,6 +306,7 @@ export async function generateTextWithModelId({
         ...(typeof maxOutputTokens === 'number' ? { maxOutputTokens } : {}),
         abortSignal: controller.signal,
       })
+      assertNonEmptyText(result.text, parsed.canonical)
       return {
         text: result.text,
         canonicalModelId: parsed.canonical,
@@ -339,7 +348,7 @@ function isRetryableTimeoutError(error: unknown): boolean {
         : typeof (error as { message?: unknown }).message === 'string'
           ? String((error as { message?: unknown }).message)
           : ''
-  return /timed out/i.test(message)
+  return /timed out/i.test(message) || /empty summary/i.test(message)
 }
 
 function computeRetryDelayMs(attempt: number): number {
