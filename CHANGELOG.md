@@ -17,6 +17,7 @@
 - Default summary length is now `long`.
 - Document CLI ordering + disable options in README and CLI/auto docs.
 - `--model free`: when OpenRouter rejects routing with “No allowed providers”, print the exact provider names to allow.
+- `--max-output-tokens`: when explicitly set, it is also forwarded to OpenRouter calls.
 
 ## 0.5.0 - 2025-12-22
 

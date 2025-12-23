@@ -205,8 +205,7 @@ export async function generateTextWithModelId({
     try {
       const { generateText } = await import('ai')
 
-      const shouldSendMaxOutputTokens = (options?: { isOpenRouter?: boolean }) =>
-        typeof maxOutputTokens === 'number' && !options?.isOpenRouter
+      const shouldSendMaxOutputTokens = () => typeof maxOutputTokens === 'number'
 
       if (parsed.provider === 'xai') {
         const apiKey = apiKeys.xaiApiKey
@@ -298,9 +297,7 @@ export async function generateTextWithModelId({
         system,
         ...(typeof prompt === 'string' ? { prompt } : { messages: prompt }),
         ...(typeof temperature === 'number' ? { temperature } : {}),
-        ...(shouldSendMaxOutputTokens({ isOpenRouter: openaiConfig.isOpenRouter })
-          ? { maxOutputTokens }
-          : {}),
+        ...(shouldSendMaxOutputTokens() ? { maxOutputTokens } : {}),
         abortSignal: controller.signal,
       })
       assertNonEmptyText(result.text, parsed.canonical)
@@ -466,8 +463,7 @@ export async function streamTextWithModelId({
       lastError = error
     }
 
-    const shouldSendMaxOutputTokens = (options?: { isOpenRouter?: boolean }) =>
-      typeof maxOutputTokens === 'number' && !options?.isOpenRouter
+    const shouldSendMaxOutputTokens = () => typeof maxOutputTokens === 'number'
 
     if (parsed.provider === 'xai') {
       const apiKey = apiKeys.xaiApiKey
@@ -562,9 +558,7 @@ export async function streamTextWithModelId({
       system,
       ...(typeof prompt === 'string' ? { prompt } : { messages: prompt }),
       ...(typeof temperature === 'number' ? { temperature } : {}),
-      ...(shouldSendMaxOutputTokens({ isOpenRouter: openaiConfig.isOpenRouter })
-        ? { maxOutputTokens }
-        : {}),
+      ...(shouldSendMaxOutputTokens() ? { maxOutputTokens } : {}),
       abortSignal: controller.signal,
       onError,
     })

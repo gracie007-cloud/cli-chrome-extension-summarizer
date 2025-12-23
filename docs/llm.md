@@ -45,7 +45,7 @@ installed, auto mode can use local CLI models when `cli.enabled` is set (see `do
   - This is *soft guidance* to the model (no hard truncation).
   - Minimum numeric value: 50 chars.
   - Default: `long`.
-- `--max-output-tokens <count>` (ignored for OpenRouter calls; used only for planning/selection)
+- `--max-output-tokens <count>`
   - Hard cap for output tokens (optional).
   - If omitted, no max token parameter is sent (provider default).
   - Minimum numeric value: 16.

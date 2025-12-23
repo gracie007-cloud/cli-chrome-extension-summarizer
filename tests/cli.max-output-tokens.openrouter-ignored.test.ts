@@ -42,7 +42,7 @@ const silentStderr = new Writable({
 })
 
 describe('--max-output-tokens (OpenRouter)', () => {
-  it('does not send maxOutputTokens to OpenRouter calls (avoids empty reasoning-only responses)', async () => {
+  it('sends maxOutputTokens to OpenRouter calls when explicitly set', async () => {
     generateTextMock.mockReset().mockResolvedValue({ text: 'OK' })
     const html =
       '<!doctype html><html><head><title>Hello</title></head>' +
@@ -74,6 +74,6 @@ describe('--max-output-tokens (OpenRouter)', () => {
     )
 
     const args = generateTextMock.mock.calls[0]?.[0] as Record<string, unknown>
-    expect(Object.hasOwn(args, 'maxOutputTokens')).toBe(false)
+    expect(args.maxOutputTokens).toBe(1234)
   })
 })
