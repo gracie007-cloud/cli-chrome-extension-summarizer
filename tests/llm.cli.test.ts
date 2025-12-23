@@ -96,6 +96,34 @@ describe('runCliModel', () => {
     expect(seen[0]?.includes('--yolo')).toBe(true)
   })
 
+  it('sets GEMINI_CLI_NO_RELAUNCH by default for Gemini', async () => {
+    let seenEnv: Record<string, unknown> | null = null
+
+    const execFileImpl: ExecFileFn = ((_cmd, _args, options, cb) => {
+      seenEnv = (options as { env?: Record<string, unknown> } | null)?.env ?? null
+      cb?.(null, JSON.stringify({ response: 'ok' }), '')
+      return {
+        stdin: {
+          write: () => {},
+          end: () => {},
+        },
+      } as unknown as ReturnType<ExecFileFn>
+    }) as ExecFileFn
+
+    await runCliModel({
+      provider: 'gemini',
+      prompt: 'Test',
+      model: 'gemini-3-flash-preview',
+      allowTools: false,
+      timeoutMs: 1000,
+      env: {},
+      execFileImpl,
+      config: null,
+    })
+
+    expect(seenEnv?.GEMINI_CLI_NO_RELAUNCH).toBe('true')
+  })
+
   it('adds provider and call-site extra args', async () => {
     const seen: string[][] = []
     const execFileImpl = makeStub((args) => {

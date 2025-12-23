@@ -268,6 +268,11 @@ export async function runCliModel({
   const binary = resolveCliBinary(provider, config, env)
   const args: string[] = []
 
+  const effectiveEnv =
+    provider === 'gemini' && !isNonEmptyString(env.GEMINI_CLI_NO_RELAUNCH)
+      ? { ...env, GEMINI_CLI_NO_RELAUNCH: 'true' }
+      : env
+
   const providerConfig =
     provider === 'claude' ? config?.claude : provider === 'codex' ? config?.codex : config?.gemini
 
@@ -294,7 +299,7 @@ export async function runCliModel({
       args,
       input: prompt,
       timeoutMs,
-      env,
+      env: effectiveEnv,
       cwd,
     })
     const { usage, costUsd } = parseCodexUsageFromJsonl(stdout)
@@ -336,7 +341,7 @@ export async function runCliModel({
     args,
     input: prompt,
     timeoutMs,
-    env,
+    env: effectiveEnv,
     cwd,
   })
   const trimmed = stdout.trim()

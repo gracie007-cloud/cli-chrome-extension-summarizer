@@ -15,6 +15,8 @@ Gemini.
 
 Why: performance. Claude/Codex CLIs were slower + higher variance in practice, so they’re opt-in via `cli.enabled`.
 
+Gemini CLI performance: summarize sets `GEMINI_CLI_NO_RELAUNCH=true` for Gemini CLI runs to avoid a costly self-relaunch (can be overridden by setting it yourself).
+
 Control which CLIs are considered:
 
 - `cli.enabled` is an allowlist (when omitted, only `gemini` is enabled).
