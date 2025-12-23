@@ -264,6 +264,16 @@ export async function generateFree({
     }
   }
 
+  const note = (line: string) => {
+    if (isTty) {
+      // Clear current progress line, print note, then progress will redraw on next tick.
+      stderr.write(`\x1b[2K\r${line}\n`)
+      lastProgressPrint = 0
+      return
+    }
+    stderr.write(`${line}\n`)
+  }
+
   const results: Result[] = []
   const idToMeta = new Map(smartSorted.map((m) => [m.id, m] as const))
 
@@ -285,16 +295,18 @@ export async function generateFree({
           retries: 0,
         })
 
+        const latencyMs = Date.now() - runStartedAt
         done += 1
         okCount += 1
         progress('tested')
 
         const meta = idToMeta.get(openrouterModelId) ?? null
+        note(`ok ${openrouterModelId} (${latencyMs}ms)`)
         return {
           ok: true,
           value: {
             openrouterModelId,
-            medianLatencyMs: Date.now() - runStartedAt,
+            medianLatencyMs: latencyMs,
             successCount: 1,
             contextLength: meta?.contextLength ?? null,
             maxCompletionTokens: meta?.maxCompletionTokens ?? null,
