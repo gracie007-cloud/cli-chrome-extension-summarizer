@@ -24,7 +24,7 @@ You’ll still see a `via …` footer when non-trivial extraction happened (Fire
 Model ids:
 
 - Native: `<provider>/<model>` (e.g. `openai/gpt-5-mini`, `google/gemini-3-flash-preview`)
-- Forced OpenRouter: `openrouter/<author>/<slug>` (e.g. `openrouter/meta-llama/llama-3.1-8b-instruct:free`)
+- Forced OpenRouter: `openrouter/<author>/<slug>` (e.g. `openrouter/meta-llama/llama-3.3-70b-instruct:free`)
 
 Behavior:
 

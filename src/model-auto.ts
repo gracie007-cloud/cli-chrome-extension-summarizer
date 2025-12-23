@@ -100,6 +100,7 @@ const DEFAULT_RULES: AutoRule[] = [
 const DEFAULT_FREE_RULES: AutoRule[] = [
   {
     candidates: [
+      'openrouter/allenai/olmo-3.1-32b-think:free',
       'openrouter/google/gemini-2.0-flash-exp:free',
       'openrouter/openai/gpt-oss-20b:free',
       'openrouter/mistralai/mistral-small-3.1-24b-instruct:free',

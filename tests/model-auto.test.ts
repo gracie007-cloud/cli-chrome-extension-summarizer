@@ -93,7 +93,7 @@ describe('auto model selection', () => {
     const config: SummarizeConfig = {
       model: {
         mode: 'auto',
-        rules: [{ candidates: ['openrouter/meta-llama/llama-3.1-8b-instruct:free'] }],
+        rules: [{ candidates: ['openrouter/meta-llama/llama-3.3-70b-instruct:free'] }],
       },
     }
     const attempts = buildAutoModelAttempts({
@@ -108,8 +108,8 @@ describe('auto model selection', () => {
       openrouterProvidersFromEnv: null,
     })
 
-    expect(attempts[0]?.userModelId).toBe('openrouter/meta-llama/llama-3.1-8b-instruct:free')
-    expect(attempts[0]?.llmModelId).toBe('openai/meta-llama/llama-3.1-8b-instruct:free')
+    expect(attempts[0]?.userModelId).toBe('openrouter/meta-llama/llama-3.3-70b-instruct:free')
+    expect(attempts[0]?.llmModelId).toBe('openai/meta-llama/llama-3.3-70b-instruct:free')
   })
 
   it('selects candidates via token bands (first match wins)', () => {
@@ -150,7 +150,10 @@ describe('auto model selection', () => {
         mode: 'free',
         rules: [
           {
-            candidates: ['openrouter/deepseek/deepseek-r1:free', 'openrouter/deepseek/deepseek-r1'],
+            candidates: [
+              'openrouter/allenai/olmo-3.1-32b-think:free',
+              'openrouter/allenai/olmo-3.1-32b-think',
+            ],
           },
         ],
       },
@@ -169,7 +172,7 @@ describe('auto model selection', () => {
     })
 
     expect(attempts).toHaveLength(1)
-    expect(attempts[0]?.userModelId).toBe('openrouter/deepseek/deepseek-r1:free')
+    expect(attempts[0]?.userModelId).toBe('openrouter/allenai/olmo-3.1-32b-think:free')
     expect(attempts[0]?.forceOpenRouter).toBe(true)
   })
 
