@@ -30,6 +30,7 @@ export type AutoModelAttempt = {
     | 'GEMINI_API_KEY'
     | 'ANTHROPIC_API_KEY'
     | 'OPENROUTER_API_KEY'
+    | 'Z_AI_API_KEY'
     | 'CLI_CLAUDE'
     | 'CLI_CODEX'
     | 'CLI_GEMINI'
@@ -156,7 +157,9 @@ function requiredEnvForCandidate(modelId: string): AutoModelAttempt['requiredEnv
       ? 'GEMINI_API_KEY'
       : parsed.provider === 'anthropic'
         ? 'ANTHROPIC_API_KEY'
-        : 'OPENAI_API_KEY'
+        : parsed.provider === 'zai'
+          ? 'Z_AI_API_KEY'
+          : 'OPENAI_API_KEY'
 }
 
 function envHasKey(
@@ -169,6 +172,9 @@ function envHasKey(
         env.GOOGLE_GENERATIVE_AI_API_KEY?.trim() ||
         env.GOOGLE_API_KEY?.trim()
     )
+  }
+  if (requiredEnv === 'Z_AI_API_KEY') {
+    return Boolean(env.Z_AI_API_KEY?.trim() || env.ZAI_API_KEY?.trim())
   }
   return Boolean(env[requiredEnv]?.trim())
 }

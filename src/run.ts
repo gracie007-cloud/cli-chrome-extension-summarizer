@@ -376,7 +376,7 @@ type JsonOutput = {
   extracted: unknown
   prompt: string
   llm: {
-    provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'cli'
+    provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai' | 'cli'
     model: string
     maxCompletionTokens: number | null
     strategy: 'single'
@@ -472,7 +472,7 @@ function buildProgram() {
     .option('--retries <count>', 'LLM retry attempts on timeout (default: 1).', '1')
     .option(
       '--model <model>',
-      'LLM model id: auto, <name>, cli/<provider>/<model>, xai/..., openai/..., google/..., anthropic/... or openrouter/<author>/<slug> (default: auto)',
+      'LLM model id: auto, <name>, cli/<provider>/<model>, xai/..., openai/..., google/..., anthropic/..., zai/... or openrouter/<author>/<slug> (default: auto)',
       undefined
     )
     .addOption(
@@ -720,7 +720,7 @@ function assertProviderSupportsAttachment({
   modelId,
   attachment,
 }: {
-  provider: 'xai' | 'openai' | 'google' | 'anthropic'
+  provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
   modelId: string
   attachment: { part: { type: string }; mediaType: string }
 }) {
@@ -832,7 +832,10 @@ ${heading('Env Vars')}
   XAI_API_KEY           optional (required for xai/... models)
   OPENAI_API_KEY        optional (required for openai/... models)
   OPENAI_BASE_URL       optional (OpenAI-compatible API endpoint; e.g. OpenRouter)
+  OPENAI_USE_CHAT_COMPLETIONS optional (force OpenAI chat completions)
   OPENROUTER_API_KEY    optional (routes openai/... models through OpenRouter)
+  Z_AI_API_KEY          optional (required for zai/... models)
+  Z_AI_BASE_URL         optional (override default Z.AI base URL)
   GEMINI_API_KEY        optional (required for google/... models)
   ANTHROPIC_API_KEY     optional (required for anthropic/... models)
   CLAUDE_PATH           optional (path to Claude CLI binary)
@@ -855,6 +858,8 @@ async function summarizeWithModelId({
   fetchImpl,
   apiKeys,
   forceOpenRouter,
+  openaiBaseUrlOverride,
+  forceChatCompletions,
   retries,
   onRetry,
 }: {
@@ -871,6 +876,8 @@ async function summarizeWithModelId({
     openrouterApiKey: string | null
   }
   forceOpenRouter?: boolean
+  openaiBaseUrlOverride?: string | null
+  forceChatCompletions?: boolean
   retries: number
   onRetry?: (notice: {
     attempt: number
@@ -880,7 +887,7 @@ async function summarizeWithModelId({
   }) => void
 }): Promise<{
   text: string
-  provider: 'xai' | 'openai' | 'google' | 'anthropic'
+  provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
   canonicalModelId: string
   usage: Awaited<ReturnType<typeof generateTextWithModelId>>['usage']
 }> {
@@ -888,6 +895,8 @@ async function summarizeWithModelId({
     modelId,
     apiKeys,
     forceOpenRouter,
+    openaiBaseUrlOverride,
+    forceChatCompletions,
     prompt,
     temperature: 0,
     maxOutputTokens,
@@ -958,6 +967,15 @@ function formatOptionalString(value: string | null | undefined): string {
     return value.trim()
   }
   return 'none'
+}
+
+function parseBooleanEnv(value: string | null | undefined): boolean | null {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  if (normalized.length === 0) return null
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) return true
+  if (['0', 'false', 'no', 'off'].includes(normalized)) return false
+  return null
 }
 
 function formatOptionalNumber(value: number | null | undefined): string {
@@ -1387,8 +1405,29 @@ export async function runCli(
       ? { ...(config ?? {}), ...(cliConfigForRun ? { cli: cliConfigForRun } : {}) }
       : config
 
+  const openaiUseChatCompletions = (() => {
+    const envValue = parseBooleanEnv(
+      typeof env.OPENAI_USE_CHAT_COMPLETIONS === 'string' ? env.OPENAI_USE_CHAT_COMPLETIONS : null
+    )
+    if (envValue !== null) return envValue
+    const configValue = config?.openai?.useChatCompletions
+    return typeof configValue === 'boolean' ? configValue : false
+  })()
+
   const xaiKeyRaw = typeof env.XAI_API_KEY === 'string' ? env.XAI_API_KEY : null
   const openaiBaseUrl = typeof env.OPENAI_BASE_URL === 'string' ? env.OPENAI_BASE_URL : null
+  const zaiKeyRaw =
+    typeof env.Z_AI_API_KEY === 'string'
+      ? env.Z_AI_API_KEY
+      : typeof env.ZAI_API_KEY === 'string'
+        ? env.ZAI_API_KEY
+        : null
+  const zaiBaseUrlRaw =
+    typeof env.Z_AI_BASE_URL === 'string'
+      ? env.Z_AI_BASE_URL
+      : typeof env.ZAI_BASE_URL === 'string'
+        ? env.ZAI_BASE_URL
+        : null
   const openRouterKeyRaw =
     typeof env.OPENROUTER_API_KEY === 'string' ? env.OPENROUTER_API_KEY : null
   const openaiKeyRaw = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY : null
@@ -1413,6 +1452,8 @@ export async function runCli(
   const firecrawlApiKey = firecrawlKey && firecrawlKey.trim().length > 0 ? firecrawlKey : null
   const firecrawlConfigured = firecrawlApiKey !== null
   const xaiApiKey = xaiKeyRaw?.trim() ?? null
+  const zaiApiKey = zaiKeyRaw?.trim() ?? null
+  const zaiBaseUrl = (zaiBaseUrlRaw?.trim() ?? '') || 'https://api.z.ai/api/paas/v4'
   const googleApiKey = googleKeyRaw?.trim() ?? null
   const anthropicApiKey = anthropicKeyRaw?.trim() ?? null
   const openrouterApiKey = (() => {
@@ -1677,16 +1718,30 @@ export async function runCli(
       | 'GEMINI_API_KEY'
       | 'ANTHROPIC_API_KEY'
       | 'OPENROUTER_API_KEY'
+      | 'Z_AI_API_KEY'
       | 'CLI_CLAUDE'
       | 'CLI_CODEX'
       | 'CLI_GEMINI'
+    openaiBaseUrlOverride?: string | null
+    openaiApiKeyOverride?: string | null
+    forceChatCompletions?: boolean
     cliProvider?: CliProvider
     cliModel?: string | null
   }
 
   type ModelMeta = {
-    provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'cli'
+    provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai' | 'cli'
     canonical: string
+  }
+
+  const applyZaiOverrides = (attempt: ModelAttempt): ModelAttempt => {
+    if (!attempt.userModelId.toLowerCase().startsWith('zai/')) return attempt
+    return {
+      ...attempt,
+      openaiApiKeyOverride: zaiApiKey,
+      openaiBaseUrlOverride: zaiBaseUrl,
+      forceChatCompletions: true,
+    }
   }
 
   const envHasKeyFor = (requiredEnv: ModelAttempt['requiredEnv']) => {
@@ -1707,6 +1762,9 @@ export async function runCli(
     }
     if (requiredEnv === 'OPENAI_API_KEY') {
       return Boolean(apiKey)
+    }
+    if (requiredEnv === 'Z_AI_API_KEY') {
+      return Boolean(zaiApiKey)
     }
     if (requiredEnv === 'XAI_API_KEY') {
       return Boolean(xaiApiKey)
@@ -1802,7 +1860,7 @@ export async function runCli(
     const parsedModel = parseGatewayStyleModelId(attempt.llmModelId)
     const apiKeysForLlm = {
       xaiApiKey,
-      openaiApiKey: apiKey,
+      openaiApiKey: attempt.openaiApiKeyOverride ?? apiKey,
       googleApiKey: googleConfigured ? googleApiKey : null,
       anthropicApiKey: anthropicConfigured ? anthropicApiKey : null,
       openrouterApiKey: openrouterConfigured ? openrouterApiKey : null,
@@ -1820,6 +1878,9 @@ export async function runCli(
     const parsedModelEffective = parseGatewayStyleModelId(modelResolution.modelId)
     const streamingEnabledForCall =
       allowStreaming && streamingEnabled && !modelResolution.forceStreamOff
+    const forceChatCompletions =
+      Boolean(attempt.forceChatCompletions) ||
+      (openaiUseChatCompletions && parsedModelEffective.provider === 'openai')
 
     const maxOutputTokensForCall = await resolveMaxOutputTokensForCall(
       parsedModelEffective.canonical
@@ -1848,6 +1909,8 @@ export async function runCli(
         fetchImpl: trackedFetch,
         apiKeys: apiKeysForLlm,
         forceOpenRouter: attempt.forceOpenRouter,
+        openaiBaseUrlOverride: attempt.openaiBaseUrlOverride ?? null,
+        forceChatCompletions,
         retries,
         onRetry: createRetryLogger({
           stderr,
@@ -1892,6 +1955,8 @@ export async function runCli(
         modelId: parsedModelEffective.canonical,
         apiKeys: apiKeysForLlm,
         forceOpenRouter: attempt.forceOpenRouter,
+        openaiBaseUrlOverride: attempt.openaiBaseUrlOverride ?? null,
+        forceChatCompletions,
         prompt,
         temperature: 0,
         maxOutputTokens: maxOutputTokensForCall ?? undefined,
@@ -1914,6 +1979,8 @@ export async function runCli(
           fetchImpl: trackedFetch,
           apiKeys: apiKeysForLlm,
           forceOpenRouter: attempt.forceOpenRouter,
+          openaiBaseUrlOverride: attempt.openaiBaseUrlOverride ?? null,
+          forceChatCompletions,
           retries,
           onRetry: createRetryLogger({
             stderr,
@@ -2245,7 +2312,7 @@ export async function runCli(
           cliAvailability,
         })
         const mapped: ModelAttempt[] = all.map((attempt) => {
-          if (attempt.transport !== 'cli') return attempt as ModelAttempt
+          if (attempt.transport !== 'cli') return applyZaiOverrides(attempt as ModelAttempt)
           const parsed = parseCliUserModelId(attempt.userModelId)
           return { ...attempt, cliProvider: parsed.provider, cliModel: parsed.model }
         })
@@ -2281,6 +2348,14 @@ export async function runCli(
           },
         ]
       }
+      const openaiOverrides =
+        fixedModelSpec.requiredEnv === 'Z_AI_API_KEY'
+          ? {
+              openaiApiKeyOverride: zaiApiKey,
+              openaiBaseUrlOverride: zaiBaseUrl,
+              forceChatCompletions: true,
+            }
+          : {}
       return [
         {
           transport: fixedModelSpec.transport === 'openrouter' ? 'openrouter' : 'native',
@@ -2289,6 +2364,7 @@ export async function runCli(
           openrouterProviders: fixedModelSpec.openrouterProviders,
           forceOpenRouter: fixedModelSpec.forceOpenRouter,
           requiredEnv: fixedModelSpec.requiredEnv,
+          ...openaiOverrides,
         },
       ]
     })()
@@ -2681,29 +2757,74 @@ export async function runCli(
   const markdownRequested = wantsMarkdown
   const effectiveMarkdownMode = markdownRequested ? markdownMode : 'off'
 
-  const markdownModel = (() => {
+  type MarkdownModel = {
+    llmModelId: string
+    forceOpenRouter: boolean
+    openaiApiKeyOverride?: string | null
+    openaiBaseUrlOverride?: string | null
+    forceChatCompletions?: boolean
+    requiredEnv?: ModelAttempt['requiredEnv']
+  }
+
+  const markdownModel: MarkdownModel | null = (() => {
     if (!markdownRequested) return null
 
     // Prefer the explicitly chosen model when it is a native provider (keeps behavior stable).
     if (requestedModel.kind === 'fixed' && requestedModel.transport === 'native') {
-      return { llmModelId: requestedModel.llmModelId, forceOpenRouter: false }
+      if (fixedModelSpec?.requiredEnv === 'Z_AI_API_KEY') {
+        return {
+          llmModelId: requestedModel.llmModelId,
+          forceOpenRouter: false,
+          requiredEnv: fixedModelSpec.requiredEnv,
+          openaiApiKeyOverride: zaiApiKey,
+          openaiBaseUrlOverride: zaiBaseUrl,
+          forceChatCompletions: true,
+        }
+      }
+      return {
+        llmModelId: requestedModel.llmModelId,
+        forceOpenRouter: false,
+        requiredEnv: fixedModelSpec?.requiredEnv,
+        forceChatCompletions: openaiUseChatCompletions,
+      }
     }
 
     // Otherwise pick a safe, broadly-capable default for HTML→Markdown conversion.
     if (googleConfigured) {
-      return { llmModelId: 'google/gemini-3-flash-preview', forceOpenRouter: false }
+      return {
+        llmModelId: 'google/gemini-3-flash-preview',
+        forceOpenRouter: false,
+        requiredEnv: 'GEMINI_API_KEY',
+      }
     }
     if (apiKey) {
-      return { llmModelId: 'openai/gpt-5-mini', forceOpenRouter: false }
+      return {
+        llmModelId: 'openai/gpt-5-mini',
+        forceOpenRouter: false,
+        requiredEnv: 'OPENAI_API_KEY',
+        forceChatCompletions: openaiUseChatCompletions,
+      }
     }
     if (openrouterConfigured) {
-      return { llmModelId: 'openai/openai/gpt-5-mini', forceOpenRouter: true }
+      return {
+        llmModelId: 'openai/openai/gpt-5-mini',
+        forceOpenRouter: true,
+        requiredEnv: 'OPENROUTER_API_KEY',
+      }
     }
     if (anthropicConfigured) {
-      return { llmModelId: 'anthropic/claude-sonnet-4-5', forceOpenRouter: false }
+      return {
+        llmModelId: 'anthropic/claude-sonnet-4-5',
+        forceOpenRouter: false,
+        requiredEnv: 'ANTHROPIC_API_KEY',
+      }
     }
     if (xaiConfigured) {
-      return { llmModelId: 'xai/grok-4-fast-non-reasoning', forceOpenRouter: false }
+      return {
+        llmModelId: 'xai/grok-4-fast-non-reasoning',
+        forceOpenRouter: false,
+        requiredEnv: 'XAI_API_KEY',
+      }
     }
 
     return null
@@ -2718,6 +2839,8 @@ export async function runCli(
   const hasKeyForMarkdownModel = (() => {
     if (!markdownModel) return false
     if (markdownModel.forceOpenRouter) return openrouterConfigured
+    if (markdownModel.requiredEnv === 'Z_AI_API_KEY') return Boolean(zaiApiKey)
+    if (markdownModel.openaiApiKeyOverride) return true
     const parsed = parseGatewayStyleModelId(markdownModel.llmModelId)
     return parsed.provider === 'xai'
       ? xaiConfigured
@@ -2725,12 +2848,15 @@ export async function runCli(
         ? googleConfigured
         : parsed.provider === 'anthropic'
           ? anthropicConfigured
-          : Boolean(apiKey)
+          : parsed.provider === 'zai'
+            ? Boolean(zaiApiKey)
+            : Boolean(apiKey)
   })()
 
   if (markdownRequested && effectiveMarkdownMode === 'llm' && !hasKeyForMarkdownModel) {
     const required = (() => {
       if (markdownModel?.forceOpenRouter) return 'OPENROUTER_API_KEY'
+      if (markdownModel?.requiredEnv === 'Z_AI_API_KEY') return 'Z_AI_API_KEY'
       if (markdownModel) {
         const parsed = parseGatewayStyleModelId(markdownModel.llmModelId)
         return parsed.provider === 'xai'
@@ -2739,7 +2865,9 @@ export async function runCli(
             ? 'GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)'
             : parsed.provider === 'anthropic'
               ? 'ANTHROPIC_API_KEY'
-              : 'OPENAI_API_KEY'
+              : parsed.provider === 'zai'
+                ? 'Z_AI_API_KEY'
+                : 'OPENAI_API_KEY'
       }
       return 'GEMINI_API_KEY (or GOOGLE_GENERATIVE_AI_API_KEY / GOOGLE_API_KEY)'
     })()
@@ -2772,7 +2900,7 @@ export async function runCli(
   writeVerbose(
     stderr,
     verbose,
-    `env xaiKey=${xaiConfigured} openaiKey=${Boolean(apiKey)} googleKey=${googleConfigured} anthropicKey=${anthropicConfigured} openrouterKey=${openrouterConfigured} apifyToken=${Boolean(apifyToken)} firecrawlKey=${firecrawlConfigured}`,
+    `env xaiKey=${xaiConfigured} openaiKey=${Boolean(apiKey)} zaiKey=${Boolean(zaiApiKey)} googleKey=${googleConfigured} anthropicKey=${anthropicConfigured} openrouterKey=${openrouterConfigured} apifyToken=${Boolean(apifyToken)} firecrawlKey=${firecrawlConfigured}`,
     verboseColor
   )
   writeVerbose(
@@ -2796,9 +2924,13 @@ export async function runCli(
           forceOpenRouter: markdownModel.forceOpenRouter,
           xaiApiKey: xaiConfigured ? xaiApiKey : null,
           googleApiKey: googleConfigured ? googleApiKey : null,
-          openaiApiKey: apiKey,
+          openaiApiKey: markdownModel.openaiApiKeyOverride ?? apiKey,
           anthropicApiKey: anthropicConfigured ? anthropicApiKey : null,
           openrouterApiKey: openrouterConfigured ? openrouterApiKey : null,
+          openaiBaseUrlOverride: markdownModel.openaiBaseUrlOverride ?? null,
+          forceChatCompletions:
+            markdownModel.forceChatCompletions ??
+            (openaiUseChatCompletions && markdownProvider === 'openai'),
           fetchImpl: trackedFetch,
           retries,
           onRetry: createRetryLogger({
@@ -3446,7 +3578,7 @@ export async function runCli(
           }
         }
         return list.map((attempt) => {
-          if (attempt.transport !== 'cli') return attempt as ModelAttempt
+          if (attempt.transport !== 'cli') return applyZaiOverrides(attempt as ModelAttempt)
           const parsed = parseCliUserModelId(attempt.userModelId)
           return { ...attempt, cliProvider: parsed.provider, cliModel: parsed.model }
         })
@@ -3468,6 +3600,14 @@ export async function runCli(
           },
         ]
       }
+      const openaiOverrides =
+        fixedModelSpec.requiredEnv === 'Z_AI_API_KEY'
+          ? {
+              openaiApiKeyOverride: zaiApiKey,
+              openaiBaseUrlOverride: zaiBaseUrl,
+              forceChatCompletions: true,
+            }
+          : {}
       return [
         {
           transport: fixedModelSpec.transport === 'openrouter' ? 'openrouter' : 'native',
@@ -3476,6 +3616,7 @@ export async function runCli(
           openrouterProviders: fixedModelSpec.openrouterProviders,
           forceOpenRouter: fixedModelSpec.forceOpenRouter,
           requiredEnv: fixedModelSpec.requiredEnv,
+          ...openaiOverrides,
         },
       ]
     })()

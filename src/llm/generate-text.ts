@@ -115,12 +115,18 @@ function resolveOpenAiClientConfig({
   apiKeys,
   fetchImpl,
   forceOpenRouter,
+  openaiBaseUrlOverride,
+  forceChatCompletions,
 }: {
   apiKeys: LlmApiKeys
   fetchImpl: typeof fetch
   forceOpenRouter?: boolean
+  openaiBaseUrlOverride?: string | null
+  forceChatCompletions?: boolean
 }): OpenAiClientConfig {
-  const baseUrlRaw = typeof process !== 'undefined' ? process.env.OPENAI_BASE_URL : undefined
+  const baseUrlRaw =
+    openaiBaseUrlOverride ??
+    (typeof process !== 'undefined' ? process.env.OPENAI_BASE_URL : undefined)
   const baseUrl =
     typeof baseUrlRaw === 'string' && baseUrlRaw.trim().length > 0 ? baseUrlRaw.trim() : null
   const isOpenRouterViaBaseUrl = baseUrl ? /openrouter\.ai/i.test(baseUrl) : false
@@ -155,11 +161,12 @@ function resolveOpenAiClientConfig({
     ? 'https://openrouter.ai/api/v1'
     : (baseUrl ?? (isOpenRouter ? 'https://openrouter.ai/api/v1' : undefined))
 
+  const useChatCompletions = Boolean(forceChatCompletions) || isOpenRouter
   return {
     apiKey,
     baseURL: baseURL ?? undefined,
     fetch: wrappedFetch,
-    useChatCompletions: isOpenRouter,
+    useChatCompletions,
     isOpenRouter,
   }
 }
@@ -174,6 +181,8 @@ export async function generateTextWithModelId({
   timeoutMs,
   fetchImpl,
   forceOpenRouter,
+  openaiBaseUrlOverride,
+  forceChatCompletions,
   retries = 0,
   onRetry,
 }: {
@@ -186,12 +195,14 @@ export async function generateTextWithModelId({
   timeoutMs: number
   fetchImpl: typeof fetch
   forceOpenRouter?: boolean
+  openaiBaseUrlOverride?: string | null
+  forceChatCompletions?: boolean
   retries?: number
   onRetry?: (notice: RetryNotice) => void
 }): Promise<{
   text: string
   canonicalModelId: string
-  provider: 'xai' | 'openai' | 'google' | 'anthropic'
+  provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
   usage: LlmTokenUsage | null
 }> {
   const parsed = parseGatewayStyleModelId(modelId)
@@ -281,6 +292,8 @@ export async function generateTextWithModelId({
         apiKeys,
         fetchImpl,
         forceOpenRouter,
+        openaiBaseUrlOverride,
+        forceChatCompletions,
       })
       const openai = createOpenAI({
         apiKey: openaiConfig.apiKey,
@@ -365,6 +378,8 @@ export async function streamTextWithModelId({
   timeoutMs,
   fetchImpl,
   forceOpenRouter,
+  openaiBaseUrlOverride,
+  forceChatCompletions,
 }: {
   modelId: string
   apiKeys: LlmApiKeys
@@ -375,10 +390,12 @@ export async function streamTextWithModelId({
   timeoutMs: number
   fetchImpl: typeof fetch
   forceOpenRouter?: boolean
+  openaiBaseUrlOverride?: string | null
+  forceChatCompletions?: boolean
 }): Promise<{
   textStream: AsyncIterable<string>
   canonicalModelId: string
-  provider: 'xai' | 'openai' | 'google' | 'anthropic'
+  provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
   usage: Promise<LlmTokenUsage | null>
   lastError: () => unknown
 }> {
@@ -542,6 +559,8 @@ export async function streamTextWithModelId({
       apiKeys,
       fetchImpl,
       forceOpenRouter,
+      openaiBaseUrlOverride,
+      forceChatCompletions,
     })
     const openai = createOpenAI({
       apiKey: openaiConfig.apiKey,

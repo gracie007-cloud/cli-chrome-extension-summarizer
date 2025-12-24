@@ -1,6 +1,6 @@
 import type { LlmTokenUsage } from './llm/generate-text.js'
 
-export type LlmProvider = 'xai' | 'openai' | 'google' | 'anthropic' | 'cli'
+export type LlmProvider = 'xai' | 'openai' | 'google' | 'anthropic' | 'zai' | 'cli'
 
 export type LlmCall = {
   provider: LlmProvider

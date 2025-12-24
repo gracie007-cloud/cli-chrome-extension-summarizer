@@ -19,6 +19,10 @@ export type CliConfig = {
   gemini?: CliProviderConfig
 }
 
+export type OpenAiConfig = {
+  useChatCompletions?: boolean
+}
+
 export type AutoRule = {
   /**
    * Input kinds this rule applies to.
@@ -30,7 +34,7 @@ export type AutoRule = {
   /**
    * Candidate model ids (ordered).
    *
-   * - Native: `openai/...`, `google/...`, `xai/...`, `anthropic/...`
+   * - Native: `openai/...`, `google/...`, `xai/...`, `anthropic/...`, `zai/...`
    * - OpenRouter (forced): `openrouter/<provider>/<model>` (e.g. `openrouter/openai/gpt-5-mini`)
    */
   candidates?: string[]
@@ -68,6 +72,7 @@ export type SummarizeConfig = {
     videoMode?: VideoMode
   }
   cli?: CliConfig
+  openai?: OpenAiConfig
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -533,12 +538,24 @@ export function loadSummarizeConfig({ env }: { env: Record<string, string | unde
       : undefined
   })()
 
+  const openai = (() => {
+    const value = parsed.openai
+    if (typeof value === 'undefined') return undefined
+    if (!isRecord(value)) {
+      throw new Error(`Invalid config file ${path}: "openai" must be an object.`)
+    }
+    const useChatCompletions =
+      typeof value.useChatCompletions === 'boolean' ? value.useChatCompletions : undefined
+    return typeof useChatCompletions === 'boolean' ? { useChatCompletions } : undefined
+  })()
+
   return {
     config: {
       ...(model ? { model } : {}),
       ...(models ? { models } : {}),
       ...(media ? { media } : {}),
       ...(cli ? { cli } : {}),
+      ...(openai ? { openai } : {}),
     },
     path,
   }

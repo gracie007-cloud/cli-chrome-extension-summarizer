@@ -43,9 +43,11 @@ export function createHtmlToMarkdownConverter({
   xaiApiKey,
   googleApiKey,
   openaiApiKey,
+  openaiBaseUrlOverride,
   anthropicApiKey,
   openrouterApiKey,
   fetchImpl,
+  forceChatCompletions,
   retries = 0,
   onRetry,
   onUsage,
@@ -55,9 +57,11 @@ export function createHtmlToMarkdownConverter({
   xaiApiKey: string | null
   googleApiKey: string | null
   openaiApiKey: string | null
+  openaiBaseUrlOverride?: string | null
   fetchImpl: typeof fetch
   anthropicApiKey: string | null
   openrouterApiKey: string | null
+  forceChatCompletions?: boolean
   retries?: number
   onRetry?: (notice: {
     attempt: number
@@ -67,7 +71,7 @@ export function createHtmlToMarkdownConverter({
   }) => void
   onUsage?: (usage: {
     model: string
-    provider: 'xai' | 'openai' | 'google' | 'anthropic'
+    provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
     usage: LlmTokenUsage | null
   }) => void
 }): ConvertHtmlToMarkdown {
@@ -85,6 +89,8 @@ export function createHtmlToMarkdownConverter({
       modelId,
       apiKeys: { xaiApiKey, googleApiKey, openaiApiKey, anthropicApiKey, openrouterApiKey },
       forceOpenRouter,
+      openaiBaseUrlOverride,
+      forceChatCompletions,
       system,
       prompt,
       timeoutMs,

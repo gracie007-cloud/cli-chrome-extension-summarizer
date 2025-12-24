@@ -12,10 +12,17 @@ export type FixedModelSpec =
       transport: 'native'
       userModelId: string
       llmModelId: string
-      provider: 'xai' | 'openai' | 'google' | 'anthropic'
+      provider: 'xai' | 'openai' | 'google' | 'anthropic' | 'zai'
       openrouterProviders: string[] | null
       forceOpenRouter: false
-      requiredEnv: 'XAI_API_KEY' | 'OPENAI_API_KEY' | 'GEMINI_API_KEY' | 'ANTHROPIC_API_KEY'
+      requiredEnv:
+        | 'XAI_API_KEY'
+        | 'OPENAI_API_KEY'
+        | 'GEMINI_API_KEY'
+        | 'ANTHROPIC_API_KEY'
+        | 'Z_AI_API_KEY'
+      openaiBaseUrlOverride?: string | null
+      forceChatCompletions?: boolean
     }
   | {
       transport: 'openrouter'
@@ -68,6 +75,25 @@ export function parseRequestedModelId(raw: string): RequestedModel {
     }
   }
 
+  if (lower.startsWith('zai/')) {
+    const model = trimmed.slice('zai/'.length).trim()
+    if (model.length === 0) {
+      throw new Error('Invalid model id: zai/… is missing the model id')
+    }
+    return {
+      kind: 'fixed',
+      transport: 'native',
+      userModelId: `zai/${model}`,
+      llmModelId: `openai/${model}`,
+      provider: 'openai',
+      openrouterProviders: null,
+      forceOpenRouter: false,
+      requiredEnv: 'Z_AI_API_KEY',
+      openaiBaseUrlOverride: 'https://api.z.ai/api/paas/v4',
+      forceChatCompletions: true,
+    }
+  }
+
   if (lower.startsWith('cli/')) {
     const parts = trimmed
       .split('/')
@@ -98,7 +124,7 @@ export function parseRequestedModelId(raw: string): RequestedModel {
 
   if (!trimmed.includes('/')) {
     throw new Error(
-      `Unknown model "${trimmed}". Expected "auto" or a provider-prefixed id like openai/..., google/..., anthropic/..., xai/..., openrouter/... or cli/....`
+      `Unknown model "${trimmed}". Expected "auto" or a provider-prefixed id like openai/..., google/..., anthropic/..., xai/..., zai/..., openrouter/... or cli/....`
     )
   }
 
@@ -111,7 +137,9 @@ export function parseRequestedModelId(raw: string): RequestedModel {
         ? 'GEMINI_API_KEY'
         : parsed.provider === 'anthropic'
           ? 'ANTHROPIC_API_KEY'
-          : 'OPENAI_API_KEY'
+          : parsed.provider === 'zai'
+            ? 'Z_AI_API_KEY'
+            : 'OPENAI_API_KEY'
   return {
     kind: 'fixed',
     transport: 'native',
