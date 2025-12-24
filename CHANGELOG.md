@@ -14,6 +14,7 @@
   - Add config support via `output.language` (legacy `language` still supported).
 - **Progress UI**
   - Add two-phase progress for podcasts: media download + Whisper transcription progress.
+  - Show transcript phases (YouTube caption/Apify/yt-dlp), provider + model, and media size/duration.
 
 ### Changes
 

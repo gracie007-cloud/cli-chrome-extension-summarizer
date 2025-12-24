@@ -93,9 +93,9 @@ describe('tty website progress', () => {
       kind: 'transcript-start',
       url: 'https://podcasts.example/episode',
       service: 'podcast',
-      hint: 'podcast',
+      hint: 'Podcast: resolving transcript',
     })
-    expect(setText).toHaveBeenLastCalledWith('Transcribing (podcast)…')
+    expect(setText).toHaveBeenLastCalledWith('Podcast: resolving transcript…')
 
     progress.onProgress({
       kind: 'transcript-done',
@@ -154,11 +154,12 @@ describe('tty website progress', () => {
       url: 'https://podcasts.example/episode',
       service: 'podcast',
       providerHint: 'openai',
+      modelId: 'whisper-1',
       totalDurationSeconds: 3600,
       parts: 6,
     })
     expect(setText).toHaveBeenLastCalledWith(
-      expect.stringContaining('Transcribing (podcast, Whisper/OpenAI')
+      expect.stringContaining('Transcribing (podcast, Whisper/OpenAI, whisper-1')
     )
 
     vi.setSystemTime(288_000)
@@ -190,20 +191,24 @@ describe('tty website progress', () => {
       url: 'https://podcasts.example/episode',
       service: 'podcast',
       providerHint: 'fal',
+      modelId: 'fal-ai/wizper',
       totalDurationSeconds: null,
       parts: null,
     })
-    expect(setText).toHaveBeenLastCalledWith(expect.stringContaining('Whisper/FAL'))
+    expect(setText).toHaveBeenLastCalledWith(expect.stringContaining('Whisper/FAL, fal-ai/wizper'))
 
     progress.onProgress({
       kind: 'transcript-whisper-start',
       url: 'https://podcasts.example/episode',
       service: 'podcast',
       providerHint: 'openai->fal',
+      modelId: 'whisper-1->fal-ai/wizper',
       totalDurationSeconds: 44,
       parts: null,
     })
-    expect(setText).toHaveBeenLastCalledWith(expect.stringContaining('Whisper/OpenAI→FAL'))
+    expect(setText).toHaveBeenLastCalledWith(
+      expect.stringContaining('Whisper/OpenAI→FAL, whisper-1->fal-ai/wizper')
+    )
     expect(setText).toHaveBeenLastCalledWith(expect.stringContaining('44s'))
 
     progress.onProgress({
@@ -211,6 +216,7 @@ describe('tty website progress', () => {
       url: 'https://podcasts.example/episode',
       service: 'podcast',
       providerHint: 'unknown',
+      modelId: null,
       totalDurationSeconds: null,
       parts: 3,
     })

@@ -59,12 +59,13 @@ describe('tty transcript progress renderer', () => {
       url: 'https://example.com',
       service: 'podcast',
       providerHint: 'openai->fal',
+      modelId: 'whisper-1->fal-ai/wizper',
       totalDurationSeconds: 44,
       parts: 3,
     })
 
     const first = setText.mock.calls.at(-1)?.[0] ?? ''
-    expect(first).toContain('Whisper/OpenAI→FAL')
+    expect(first).toContain('Whisper/OpenAI→FAL, whisper-1->fal-ai/wizper')
     expect(first).toContain('44s')
 
     vi.setSystemTime(12_000)
@@ -117,6 +118,29 @@ describe('tty transcript progress renderer', () => {
     const whisper = setText.mock.calls.at(-1)?.[0] ?? ''
     expect(whisper).toContain('Transcribing (media, Whisper')
     expect(whisper).toContain('0.0s')
+
+    vi.useRealTimers()
+  })
+
+  it('prefers whisper.cpp label without model suffix', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(5_000)
+
+    const setText = vi.fn()
+    const { onProgress } = createTranscriptProgressRenderer({ spinner: { setText } })
+
+    onProgress({
+      kind: 'transcript-whisper-start',
+      url: 'https://example.com',
+      service: 'podcast',
+      providerHint: 'cpp',
+      modelId: 'whisper.cpp',
+      totalDurationSeconds: 10,
+      parts: null,
+    })
+    const line = setText.mock.calls.at(-1)?.[0] ?? ''
+    expect(line).toContain('Whisper.cpp')
+    expect(line).not.toContain('whisper.cpp,')
 
     vi.useRealTimers()
   })
