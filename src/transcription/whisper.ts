@@ -169,7 +169,10 @@ async function transcribeWithWhisperCppFile({
         await runFfmpegTranscodeToMp3({ inputPath: filePath, outputPath: effectivePath.path })
         notes.push('whisper.cpp: transcoded media to MP3 via ffmpeg')
       } catch (error) {
-        await runFfmpegTranscodeToMp3Lenient({ inputPath: filePath, outputPath: effectivePath.path })
+        await runFfmpegTranscodeToMp3Lenient({
+          inputPath: filePath,
+          outputPath: effectivePath.path,
+        })
         notes.push('whisper.cpp: transcoded media to MP3 via ffmpeg (lenient)')
         notes.push(`whisper.cpp: strict transcode failed: ${wrapError('ffmpeg', error).message}`)
       }
@@ -464,7 +467,7 @@ async function transcodeBytesToMp3(bytes: Uint8Array): Promise<Uint8Array> {
     await fs.writeFile(inputPath, bytes)
     try {
       await runFfmpegTranscodeToMp3({ inputPath, outputPath })
-    } catch (error) {
+    } catch (_error) {
       await runFfmpegTranscodeToMp3Lenient({ inputPath, outputPath })
     }
     return new Uint8Array(await fs.readFile(outputPath))
@@ -963,7 +966,9 @@ async function runFfmpegTranscode({
       const detail = stderr.trim()
       reject(
         new Error(
-          `ffmpeg ${mode} transcode failed (${code ?? 'unknown'}): ${detail || 'unknown error'}`
+          `ffmpeg ${mode} transcode failed (${code ?? 'unknown'}) for ${inputPath} -> ${outputPath}: ${
+            detail || 'unknown error'
+          }`
         )
       )
     })

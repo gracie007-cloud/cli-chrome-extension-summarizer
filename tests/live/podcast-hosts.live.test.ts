@@ -190,5 +190,4 @@ const silentStderr = new Writable({
     },
     timeoutMs
   )
-
 })

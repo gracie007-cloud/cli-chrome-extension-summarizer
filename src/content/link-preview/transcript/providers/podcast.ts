@@ -1152,7 +1152,7 @@ async function resolvePodcastEpisodeFromItunesSearch(
       const title = getRecordString(record, 'trackName')
       const collection = getRecordString(record, 'collectionName')
       const episodeUrl = getRecordString(record, 'episodeUrl')
-      const durationMs = record['trackTimeMillis']
+      const durationMs = record.trackTimeMillis
       const durationSeconds =
         typeof durationMs === 'number' && Number.isFinite(durationMs) ? durationMs / 1000 : null
       return {

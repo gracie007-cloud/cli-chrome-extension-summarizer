@@ -18,6 +18,16 @@ export function startSpinner({
     return { stop: () => {}, clear: () => {}, stopAndClear: () => {}, setText: () => {} }
   }
 
+  const oraStream = stream as typeof stream & {
+    cursorTo?: (x: number, y?: number) => void
+    clearLine?: (dir: number) => void
+    moveCursor?: (dx: number, dy: number) => void
+  }
+
+  if (typeof oraStream.cursorTo !== 'function') oraStream.cursorTo = () => {}
+  if (typeof oraStream.clearLine !== 'function') oraStream.clearLine = () => {}
+  if (typeof oraStream.moveCursor !== 'function') oraStream.moveCursor = () => {}
+
   const clear = () => {
     // Keep output clean in scrollback.
     // `ora` clears the line, but we also hard-clear as a fallback.
@@ -41,7 +51,7 @@ export function startSpinner({
 
   const spinner = ora({
     text,
-    stream,
+    stream: oraStream,
     // Match Sweetistics CLI vibe; keep it clean.
     spinner: 'dots12',
     color: 'cyan',
