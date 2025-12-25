@@ -2,6 +2,10 @@
 
 ## 0.6.1 - Unreleased
 
+### Changes
+
+- `--version` now includes a short git SHA when available (build provenance).
+
 ## 0.6.0 - 2025-12-25
 
 ### Features

@@ -73,7 +73,7 @@ import {
 import { createOscProgressController, startOscProgress } from './tty/osc-progress.js'
 import { startSpinner } from './tty/spinner.js'
 import { createWebsiteProgress } from './tty/website-progress.js'
-import { resolvePackageVersion } from './version.js'
+import { formatVersionLine } from './version.js'
 
 type RunEnv = {
   env: Record<string, string | undefined>
@@ -1525,7 +1525,6 @@ export async function runCli(
     return
   }
   const execFileImpl = execFileOverride ?? execFile
-  const version = resolvePackageVersion()
   const program = buildProgram()
   program.configureOutput({
     writeOut(str) {
@@ -1548,7 +1547,7 @@ export async function runCli(
   }
 
   if (program.opts().version) {
-    stdout.write(`${version}\n`)
+    stdout.write(`${formatVersionLine()}\n`)
     return
   }
 

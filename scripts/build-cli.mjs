@@ -1,4 +1,5 @@
 import { mkdir } from 'node:fs/promises'
+import { execSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -11,6 +12,14 @@ const repoRoot = path.resolve(__dirname, '..')
 const distDir = path.join(repoRoot, 'dist')
 await mkdir(distDir, { recursive: true })
 
+const gitSha = (() => {
+  try {
+    return execSync('git rev-parse --short=8 HEAD', { cwd: repoRoot, encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+})()
+
 await build({
   entryPoints: [path.join(repoRoot, 'src', 'cli.ts')],
   outfile: path.join(distDir, 'cli.cjs'),
@@ -21,6 +30,7 @@ await build({
   sourcemap: true,
   logLevel: 'info',
   banner: { js: '#!/usr/bin/env node' },
+  define: gitSha ? { 'process.env.SUMMARIZE_GIT_SHA': JSON.stringify(gitSha) } : undefined,
   // Keep core dependencies external for the library build; CLI-only deps get bundled.
   external: ['cheerio', 'es-toolkit', 'sanitize-html'],
 })

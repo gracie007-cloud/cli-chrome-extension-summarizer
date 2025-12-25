@@ -28,6 +28,15 @@ function readPackageVersion() {
   return typeof pkg?.version === 'string' ? pkg.version : '0.0.0'
 }
 
+function readGitSha() {
+  const result = spawnSync('git', ['rev-parse', '--short=8', 'HEAD'], {
+    cwd: projectRoot,
+    encoding: 'utf8',
+  })
+  if (result.status !== 0) return ''
+  return typeof result.stdout === 'string' ? result.stdout.trim() : ''
+}
+
 function fmtSize(bytes) {
   if (!Number.isFinite(bytes)) return null
   if (bytes < 1024) return `${bytes}B`
@@ -39,9 +48,11 @@ function chmodX(path) {
   run('chmod', ['+x', path])
 }
 
-function buildOne({ target, outName }) {
+function buildOne({ target, outName, version, gitSha }) {
   const outPath = join(distDir, outName)
   console.log(`\n🔨 Building ${outName} (target=${target}, bytecode)…`)
+  if (version) process.env.SUMMARIZE_VERSION = version
+  if (gitSha) process.env.SUMMARIZE_GIT_SHA = gitSha
   run('bun', [
     'build',
     join(projectRoot, 'src/cli.ts'),
@@ -50,6 +61,7 @@ function buildOne({ target, outName }) {
     '--minify',
     '--target',
     target,
+    '--env=SUMMARIZE_*',
     '--outfile',
     outPath,
   ])
@@ -67,7 +79,8 @@ function buildOne({ target, outName }) {
 }
 
 function buildMacosArm64({ version }) {
-  const outPath = buildOne({ target: 'bun-darwin-arm64', outName: 'summarize' })
+  const gitSha = readGitSha()
+  const outPath = buildOne({ target: 'bun-darwin-arm64', outName: 'summarize', version, gitSha })
   chmodX(outPath)
 
   const tarName = `summarize-macos-arm64-v${version}.tar.gz`
