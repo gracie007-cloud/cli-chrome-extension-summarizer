@@ -136,6 +136,8 @@ npx -y @steipete/summarize "https://example.com" --length 20k
 npx -y @steipete/summarize <input> [flags]
 ```
 
+Use `summarize --help` or `summarize help` for the full help text.
+
 - `--model <provider/model>`: which model to use (defaults to `auto`)
 - `--model auto`: automatic model selection + fallback (default)
 - `--model <name>`: use a config-defined model (see “Configuration”)
@@ -147,6 +149,7 @@ npx -y @steipete/summarize <input> [flags]
 - `--cli [provider]`: use a CLI provider (case-insensitive; equivalent to `--model cli/<provider>`). If omitted, uses auto selection with CLI enabled.
 - `--stream auto|on|off`: stream LLM output (`auto` = TTY only; disabled in `--json` mode)
 - `--render auto|md-live|md|plain`: Markdown rendering (`auto` = best default for TTY)
+- `--no-color`: disable ANSI colors
 - `--format md|text`: website/file content format (default `text`)
 - `--preprocess off|auto|always`: controls `uvx markitdown` usage (default `auto`; `always` forces file preprocessing)
   - Install `uvx`: `brew install uv` (or https://astral.sh/uv/)

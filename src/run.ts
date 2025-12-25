@@ -86,6 +86,7 @@ type RunEnv = {
 const BIRD_TIP = 'Tip: Install bird🐦 for better Twitter support: https://github.com/steipete/bird'
 const UVX_TIP =
   'Tip: Install uv (uvx) for local Markdown conversion: brew install uv (or set UVX_PATH to your uvx binary).'
+const SUPPORT_URL = 'https://github.com/steipete/summarize'
 const TWITTER_HOSTS = new Set(['x.com', 'twitter.com', 'mobile.twitter.com'])
 const SUMMARY_LENGTH_MAX_CHARACTERS: Record<SummaryLength, number> = {
   short: 1200,
@@ -512,6 +513,7 @@ function buildProgram() {
       'Render Markdown output: auto (TTY only), md-live, md, plain. Note: auto selects md-live when streaming to a TTY.',
       'auto'
     )
+    .option('--no-color', 'Disable ANSI colors in output', false)
     .option('--verbose', 'Print detailed progress info to stderr', false)
     .option('--debug', 'Alias for --verbose (and defaults --metrics to detailed)', false)
     .addOption(
@@ -864,8 +866,38 @@ ${heading('Env Vars')}
   APIFY_API_TOKEN       optional YouTube transcript fallback
   YT_DLP_PATH           optional path to yt-dlp binary for audio extraction
   FAL_KEY               optional FAL AI API key for audio transcription
+
+${heading('Support')}
+  ${SUPPORT_URL}
 `
   )
+}
+
+function buildConciseHelp(): string {
+  return [
+    'summarize - Summarize web pages, files, and YouTube links.',
+    '',
+    'Usage:',
+    '  summarize <url-or-file> [flags]',
+    '',
+    'Examples:',
+    '  summarize "https://example.com"',
+    '  summarize "/path/to/file.pdf" --model google/gemini-3-flash-preview',
+    '',
+    'Run summarize --help for full options.',
+    `Support: ${SUPPORT_URL}`,
+  ].join('
+')
+}
+
+function buildRefreshFreeHelp(): string {
+  return [
+    'Usage: summarize refresh-free [--runs 2] [--smart 3] [--min-params 27b] [--max-age-days 180] [--set-default] [--verbose]',
+    '',
+    'Writes ~/.summarize/config.json (models.free) with working OpenRouter :free candidates.',
+    'With --set-default: also sets `model` to "free".',
+  ].join('
+')
 }
 
 async function summarizeWithModelId({
@@ -1403,6 +1435,30 @@ export async function runCli(
   ;(globalThis as unknown as { AI_SDK_LOG_WARNINGS?: boolean }).AI_SDK_LOG_WARNINGS = false
 
   const normalizedArgv = argv.filter((arg) => arg !== '--')
+  const noColorFlag = normalizedArgv.includes('--no-color')
+  const envForRun = noColorFlag ? { ...env, NO_COLOR: '1' } : env
+
+  if (normalizedArgv[0]?.toLowerCase() === 'help') {
+    const topic = normalizedArgv[1]?.toLowerCase()
+    if (topic === 'refresh-free') {
+      stdout.write(`${buildRefreshFreeHelp()}
+`)
+      return
+    }
+
+    const program = buildProgram()
+    program.configureOutput({
+      writeOut(str) {
+        stdout.write(str)
+      },
+      writeErr(str) {
+        stderr.write(str)
+      },
+    })
+    attachRichHelp(program, envForRun, stdout)
+    program.outputHelp()
+    return
+  }
   if (normalizedArgv[0]?.toLowerCase() === 'refresh-free') {
     const verbose = normalizedArgv.includes('--verbose') || normalizedArgv.includes('--debug')
     const setDefault = normalizedArgv.includes('--set-default')
@@ -1441,14 +1497,7 @@ export async function runCli(
     })()
 
     if (help) {
-      stdout.write(
-        `${[
-          'Usage: summarize refresh-free [--runs 2] [--smart 3] [--min-params 27b] [--max-age-days 180] [--set-default] [--verbose]',
-          '',
-          'Writes ~/.summarize/config.json (models.free) with working OpenRouter :free candidates.',
-          'With --set-default: also sets `model` to "free".',
-        ].join('\n')}\n`
-      )
+      stdout.write(`${buildRefreshFreeHelp()}\n`)
       return
     }
 
@@ -1460,7 +1509,7 @@ export async function runCli(
       throw new Error('--max-age-days must be >= 0')
 
     await refreshFree({
-      env,
+      env: envForRun,
       fetchImpl: fetch,
       stdout,
       stderr,
@@ -1490,7 +1539,7 @@ export async function runCli(
     },
   })
   program.exitOverride()
-  attachRichHelp(program, env, stdout)
+  attachRichHelp(program, envForRun, stdout)
 
   try {
     program.parse(normalizedArgv, { from: 'user' })
@@ -1519,9 +1568,8 @@ export async function runCli(
     }
   }
   if (!rawInput) {
-    throw new Error(
-      'Usage: summarize <url-or-file> [--youtube auto|web|apify] [--length 20k] [--max-output-tokens 2k] [--timeout 2m] [--json]'
-    )
+    stdout.write(`${buildConciseHelp()}\n`)
+    return
   }
 
   const inputTarget = resolveInputTarget(rawInput)
@@ -1600,7 +1648,7 @@ export async function runCli(
       ? 'auto'
       : modelArg
 
-  const { config, path: configPath } = loadSummarizeConfig({ env })
+  const { config, path: configPath } = loadSummarizeConfig({ env: envForRun })
   const cliLanguageRaw =
     typeof (program.opts() as { language?: unknown; lang?: unknown }).language === 'string'
       ? ((program.opts() as { language?: string }).language as string)
@@ -1638,46 +1686,46 @@ export async function runCli(
 
   const openaiUseChatCompletions = (() => {
     const envValue = parseBooleanEnv(
-      typeof env.OPENAI_USE_CHAT_COMPLETIONS === 'string' ? env.OPENAI_USE_CHAT_COMPLETIONS : null
+      typeof envForRun.OPENAI_USE_CHAT_COMPLETIONS === 'string' ? envForRun.OPENAI_USE_CHAT_COMPLETIONS : null
     )
     if (envValue !== null) return envValue
     const configValue = config?.openai?.useChatCompletions
     return typeof configValue === 'boolean' ? configValue : false
   })()
 
-  const xaiKeyRaw = typeof env.XAI_API_KEY === 'string' ? env.XAI_API_KEY : null
-  const openaiBaseUrl = typeof env.OPENAI_BASE_URL === 'string' ? env.OPENAI_BASE_URL : null
+  const xaiKeyRaw = typeof envForRun.XAI_API_KEY === 'string' ? envForRun.XAI_API_KEY : null
+  const openaiBaseUrl = typeof envForRun.OPENAI_BASE_URL === 'string' ? envForRun.OPENAI_BASE_URL : null
   const zaiKeyRaw =
-    typeof env.Z_AI_API_KEY === 'string'
-      ? env.Z_AI_API_KEY
-      : typeof env.ZAI_API_KEY === 'string'
-        ? env.ZAI_API_KEY
+    typeof envForRun.Z_AI_API_KEY === 'string'
+      ? envForRun.Z_AI_API_KEY
+      : typeof envForRun.ZAI_API_KEY === 'string'
+        ? envForRun.ZAI_API_KEY
         : null
   const zaiBaseUrlRaw =
-    typeof env.Z_AI_BASE_URL === 'string'
-      ? env.Z_AI_BASE_URL
-      : typeof env.ZAI_BASE_URL === 'string'
-        ? env.ZAI_BASE_URL
+    typeof envForRun.Z_AI_BASE_URL === 'string'
+      ? envForRun.Z_AI_BASE_URL
+      : typeof envForRun.ZAI_BASE_URL === 'string'
+        ? envForRun.ZAI_BASE_URL
         : null
   const openRouterKeyRaw =
-    typeof env.OPENROUTER_API_KEY === 'string' ? env.OPENROUTER_API_KEY : null
-  const openaiKeyRaw = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY : null
+    typeof envForRun.OPENROUTER_API_KEY === 'string' ? envForRun.OPENROUTER_API_KEY : null
+  const openaiKeyRaw = typeof envForRun.OPENAI_API_KEY === 'string' ? envForRun.OPENAI_API_KEY : null
   const apiKey =
     typeof openaiBaseUrl === 'string' && /openrouter\.ai/i.test(openaiBaseUrl)
       ? (openRouterKeyRaw ?? openaiKeyRaw)
       : openaiKeyRaw
-  const apifyToken = typeof env.APIFY_API_TOKEN === 'string' ? env.APIFY_API_TOKEN : null
-  const ytDlpPath = typeof env.YT_DLP_PATH === 'string' ? env.YT_DLP_PATH : null
-  const falApiKey = typeof env.FAL_KEY === 'string' ? env.FAL_KEY : null
-  const firecrawlKey = typeof env.FIRECRAWL_API_KEY === 'string' ? env.FIRECRAWL_API_KEY : null
-  const anthropicKeyRaw = typeof env.ANTHROPIC_API_KEY === 'string' ? env.ANTHROPIC_API_KEY : null
+  const apifyToken = typeof envForRun.APIFY_API_TOKEN === 'string' ? envForRun.APIFY_API_TOKEN : null
+  const ytDlpPath = typeof envForRun.YT_DLP_PATH === 'string' ? envForRun.YT_DLP_PATH : null
+  const falApiKey = typeof envForRun.FAL_KEY === 'string' ? envForRun.FAL_KEY : null
+  const firecrawlKey = typeof envForRun.FIRECRAWL_API_KEY === 'string' ? envForRun.FIRECRAWL_API_KEY : null
+  const anthropicKeyRaw = typeof envForRun.ANTHROPIC_API_KEY === 'string' ? envForRun.ANTHROPIC_API_KEY : null
   const googleKeyRaw =
-    typeof env.GEMINI_API_KEY === 'string'
-      ? env.GEMINI_API_KEY
-      : typeof env.GOOGLE_GENERATIVE_AI_API_KEY === 'string'
-        ? env.GOOGLE_GENERATIVE_AI_API_KEY
-        : typeof env.GOOGLE_API_KEY === 'string'
-          ? env.GOOGLE_API_KEY
+    typeof envForRun.GEMINI_API_KEY === 'string'
+      ? envForRun.GEMINI_API_KEY
+      : typeof envForRun.GOOGLE_GENERATIVE_AI_API_KEY === 'string'
+        ? envForRun.GOOGLE_GENERATIVE_AI_API_KEY
+        : typeof envForRun.GOOGLE_API_KEY === 'string'
+          ? envForRun.GOOGLE_API_KEY
           : null
 
   const firecrawlApiKey = firecrawlKey && firecrawlKey.trim().length > 0 ? firecrawlKey : null
@@ -1850,8 +1898,8 @@ export async function runCli(
   })()
 
   const resolvedDefaultModel = (() => {
-    if (typeof env.SUMMARIZE_MODEL === 'string' && env.SUMMARIZE_MODEL.trim().length > 0) {
-      return env.SUMMARIZE_MODEL.trim()
+    if (typeof envForRun.SUMMARIZE_MODEL === 'string' && envForRun.SUMMARIZE_MODEL.trim().length > 0) {
+      return envForRun.SUMMARIZE_MODEL.trim()
     }
     const modelFromConfig = config?.model
     if (modelFromConfig) {
@@ -1908,7 +1956,7 @@ export async function runCli(
 
   const isFallbackModel = requestedModel.kind === 'auto'
 
-  const verboseColor = supportsColor(stderr, env)
+  const verboseColor = supportsColor(stderr, envForRun)
   const effectiveStreamMode = (() => {
     if (streamMode !== 'auto') return streamMode
     return isRichTty(stdout) ? 'on' : 'off'
@@ -2296,7 +2344,7 @@ export async function runCli(
               renderMarkdownAnsi(prepareMarkdownForTerminal(markdown), {
                 width: markdownRenderWidth(stdout, env),
                 wrap: true,
-                color: supportsColor(stdout, env),
+                color: supportsColor(stdout, envForRun),
                 hyperlinks: true,
               }),
           })
@@ -2450,7 +2498,7 @@ export async function runCli(
           bytes: fileBytes,
           filenameHint: attachment.filename,
           mediaTypeHint: attachment.mediaType,
-          uvxCommand: env.UVX_PATH,
+          uvxCommand: envForRun.UVX_PATH,
           timeoutMs,
           env,
           execFileImpl,
@@ -2511,7 +2559,7 @@ export async function runCli(
             bytes: fileBytes,
             filenameHint: attachment.filename,
             mediaTypeHint: attachment.mediaType,
-            uvxCommand: env.UVX_PATH,
+            uvxCommand: envForRun.UVX_PATH,
             timeoutMs,
             env,
             execFileImpl,
@@ -2840,7 +2888,7 @@ export async function runCli(
           ? renderMarkdownAnsi(prepareMarkdownForTerminal(summary), {
               width: markdownRenderWidth(stdout, env),
               wrap: true,
-              color: supportsColor(stdout, env),
+              color: supportsColor(stdout, envForRun),
               hyperlinks: true,
             })
           : summary
@@ -3217,7 +3265,7 @@ export async function runCli(
             bytes: new TextEncoder().encode(args.html),
             filenameHint: 'page.html',
             mediaTypeHint: 'text/html',
-            uvxCommand: env.UVX_PATH,
+            uvxCommand: envForRun.UVX_PATH,
             timeoutMs: args.timeoutMs,
             env,
             execFileImpl,
@@ -3965,7 +4013,7 @@ export async function runCli(
           ? renderMarkdownAnsi(prepareMarkdownForTerminal(summary), {
               width: markdownRenderWidth(stdout, env),
               wrap: true,
-              color: supportsColor(stdout, env),
+              color: supportsColor(stdout, envForRun),
               hyperlinks: true,
             })
           : summary
