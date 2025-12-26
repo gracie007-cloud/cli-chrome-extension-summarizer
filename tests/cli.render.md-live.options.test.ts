@@ -144,9 +144,11 @@ describe('cli md-live rendering options', () => {
 
       expect(createLiveRendererMock).toHaveBeenCalledTimes(1)
       const options = createLiveRendererMock.mock.calls[0]?.[0]
+      const renderer = createLiveRendererMock.mock.results[0]?.value
       expect(options?.maxRows).toBe(19)
       expect(options?.tailRows).toBe(12)
       expect(options?.clearOnOverflow).toBe(false)
+      expect(renderer?.finish).toHaveBeenCalledWith('Hello **bold**')
     } finally {
       globalFetchSpy.mockRestore()
     }

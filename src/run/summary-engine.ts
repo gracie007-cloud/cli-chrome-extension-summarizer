@@ -373,6 +373,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
       getLastStreamError = streamResult.lastError
       let streamed = ''
       let liveOverflowed = false
+      let liveFinalFrame: string | null = null
       const terminalRows = terminalHeight(deps.stdout, deps.env)
       const maxLiveRows = Math.max(3, terminalRows - 1)
       const tailLiveRows = Math.max(1, Math.min(maxLiveRows - 1, 12))
@@ -430,11 +431,15 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
         const trimmed = streamed.trim()
         streamed = trimmed
         if (liveRenderer && !liveOverflowed) {
-          liveRenderer.render(trimmed)
+          if (tailLiveRows > 0) {
+            liveFinalFrame = trimmed
+          } else {
+            liveRenderer.render(trimmed)
+          }
           summaryAlreadyPrinted = true
         }
       } finally {
-        liveRenderer?.finish()
+        liveRenderer?.finish(liveFinalFrame ?? undefined)
       }
       const usage = await streamResult.usage
       deps.llmCalls.push({
