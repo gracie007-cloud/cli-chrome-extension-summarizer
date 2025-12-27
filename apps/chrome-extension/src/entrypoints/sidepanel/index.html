@@ -29,18 +29,28 @@
 
     <section id="drawer" class="drawer hidden" aria-label="Controls">
       <div class="drawerGrid">
-        <label class="length wide">
-          <span>Length</span>
+        <label id="lengthLabel" class="length wide">
+          <span class="pickerTitle">Length</span>
           <div class="combo">
-            <select id="lengthPreset">
-              <option value="short">short</option>
-              <option value="medium">medium</option>
-              <option value="long">long</option>
-              <option value="xl">xl</option>
-              <option value="xxl">xxl</option>
-              <option value="20k">20k</option>
-              <option value="custom">Custom…</option>
-            </select>
+            <div id="lengthPicker" class="picker">
+              <button id="lengthTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <span id="lengthValue">Long</span>
+              </button>
+              <div id="lengthPositioner" class="pickerPositioner">
+                <div id="lengthContent" class="pickerContent">
+                  <div id="lengthList" class="pickerList">
+                    <button type="button" class="pickerOption" data-value="short">Short</button>
+                    <button type="button" class="pickerOption" data-value="medium">Medium</button>
+                    <button type="button" class="pickerOption" data-value="long">Long</button>
+                    <button type="button" class="pickerOption" data-value="xl">XL</button>
+                    <button type="button" class="pickerOption" data-value="xxl">XXL</button>
+                    <button type="button" class="pickerOption" data-value="20k">20k</button>
+                    <button type="button" class="pickerOption" data-value="custom">Custom…</button>
+                  </div>
+                </div>
+              </div>
+              <select id="lengthHidden" class="pickerHidden" aria-hidden="true"></select>
+            </div>
             <input
               id="lengthCustom"
               type="text"
@@ -52,98 +62,107 @@
             />
           </div>
         </label>
-        <label class="scheme">
-          <span>Scheme</span>
-          <div class="picker" data-open="false">
+        <label id="schemeLabel" class="scheme">
+          <span class="pickerTitle">Scheme</span>
+          <div id="schemePicker" class="picker">
             <button id="schemeTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="scheme-label" id="schemeLabel">Slate</span>
+              <span class="scheme-label" id="schemeValue">Slate</span>
               <span class="scheme-chips scheme-slate" id="schemeChips" aria-hidden="true">
                 <span></span><span></span><span></span><span></span>
               </span>
             </button>
-            <div id="schemeList" class="pickerList" role="listbox" tabindex="-1">
-              <button type="button" class="pickerOption" role="option" data-value="slate">
-                <span class="scheme-label">Slate</span>
-                <span class="scheme-chips scheme-slate" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="cedar">
-                <span class="scheme-label">Cedar</span>
-                <span class="scheme-chips scheme-cedar" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="mint">
-                <span class="scheme-label">Mint</span>
-                <span class="scheme-chips scheme-mint" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="ocean">
-                <span class="scheme-label">Ocean</span>
-                <span class="scheme-chips scheme-ocean" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="ember">
-                <span class="scheme-label">Ember</span>
-                <span class="scheme-chips scheme-ember" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="iris">
-                <span class="scheme-label">Iris</span>
-                <span class="scheme-chips scheme-iris" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
+            <div id="schemePositioner" class="pickerPositioner">
+              <div id="schemeContent" class="pickerContent">
+                <div id="schemeList" class="pickerList">
+                  <button type="button" class="pickerOption" data-value="slate">
+                    <span class="scheme-label">Slate</span>
+                    <span class="scheme-chips scheme-slate" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="cedar">
+                    <span class="scheme-label">Cedar</span>
+                    <span class="scheme-chips scheme-cedar" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="mint">
+                    <span class="scheme-label">Mint</span>
+                    <span class="scheme-chips scheme-mint" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="ocean">
+                    <span class="scheme-label">Ocean</span>
+                    <span class="scheme-chips scheme-ocean" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="ember">
+                    <span class="scheme-label">Ember</span>
+                    <span class="scheme-chips scheme-ember" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="iris">
+                    <span class="scheme-label">Iris</span>
+                    <span class="scheme-chips scheme-iris" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
+            <select id="schemeHidden" class="pickerHidden" aria-hidden="true"></select>
           </div>
         </label>
-        <label class="mode">
-          <span>Mode</span>
-          <div class="picker" data-open="false">
+        <label id="modeLabel" class="mode">
+          <span class="pickerTitle">Mode</span>
+          <div id="modePicker" class="picker">
             <button id="modeTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span id="modeLabel">System</span>
+              <span id="modeValue">System</span>
             </button>
-            <div id="modeList" class="pickerList" role="listbox" tabindex="-1">
-              <button type="button" class="pickerOption" role="option" data-value="system">System</button>
-              <button type="button" class="pickerOption" role="option" data-value="light">Light</button>
-              <button type="button" class="pickerOption" role="option" data-value="dark">Dark</button>
+            <div id="modePositioner" class="pickerPositioner">
+              <div id="modeContent" class="pickerContent">
+                <div id="modeList" class="pickerList">
+                  <button type="button" class="pickerOption" data-value="system">System</button>
+                  <button type="button" class="pickerOption" data-value="light">Light</button>
+                  <button type="button" class="pickerOption" data-value="dark">Dark</button>
+                </div>
+              </div>
             </div>
+            <select id="modeHidden" class="pickerHidden" aria-hidden="true"></select>
           </div>
         </label>
-        <label class="font">
-          <span>Font</span>
-          <div class="picker" data-open="false">
+        <label id="fontLabel" class="font">
+          <span class="pickerTitle">Font</span>
+          <div id="fontPicker" class="picker">
             <button id="fontTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span id="fontLabel">SF</span>
+              <span id="fontValue">SF</span>
             </button>
-            <div id="fontList" class="pickerList" role="listbox" tabindex="-1">
-              <button
-                type="button"
-                class="pickerOption"
-                role="option"
-                data-value="-apple-system, BlinkMacSystemFont, &quot;SF Pro Text&quot;, system-ui, sans-serif"
-              >
-                SF
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="Georgia, serif">
-                Georgia
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="Iowan Old Style, Palatino, serif">
-                Iowan
-              </button>
-              <button
-                type="button"
-                class="pickerOption"
-                role="option"
-                data-value="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
-              >
-                Mono
-              </button>
+            <div id="fontPositioner" class="pickerPositioner">
+              <div id="fontContent" class="pickerContent">
+                <div id="fontList" class="pickerList">
+                  <button
+                    type="button"
+                    class="pickerOption"
+                    data-value="-apple-system, BlinkMacSystemFont, &quot;SF Pro Text&quot;, system-ui, sans-serif"
+                  >
+                    SF
+                  </button>
+                  <button type="button" class="pickerOption" data-value="Georgia, serif">Georgia</button>
+                  <button type="button" class="pickerOption" data-value="Iowan Old Style, Palatino, serif">Iowan</button>
+                  <button
+                    type="button"
+                    class="pickerOption"
+                    data-value="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+                  >
+                    Mono
+                  </button>
+                </div>
+              </div>
             </div>
+            <select id="fontHidden" class="pickerHidden" aria-hidden="true"></select>
           </div>
         </label>
         <label class="size">

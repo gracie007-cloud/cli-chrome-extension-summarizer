@@ -88,62 +88,77 @@
           <span>Max chars (extracted)</span>
           <input id="maxChars" type="number" min="20000" step="10000" />
         </label>
-        <label>
-          <span>Color scheme</span>
-          <div class="picker" data-open="false">
+        <label id="schemeLabel">
+          <span class="pickerTitle">Color scheme</span>
+          <div id="schemePicker" class="picker">
             <button id="schemeTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
-              <span class="scheme-label" id="schemeLabel">Slate</span>
+              <span class="scheme-label" id="schemeValue">Slate</span>
               <span class="scheme-chips scheme-slate" id="schemeChips" aria-hidden="true">
                 <span></span><span></span><span></span><span></span>
               </span>
             </button>
-            <div id="schemeList" class="pickerList" role="listbox" tabindex="-1">
-              <button type="button" class="pickerOption" role="option" data-value="slate">
-                <span class="scheme-label">Slate</span>
-                <span class="scheme-chips scheme-slate" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="cedar">
-                <span class="scheme-label">Cedar</span>
-                <span class="scheme-chips scheme-cedar" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="mint">
-                <span class="scheme-label">Mint</span>
-                <span class="scheme-chips scheme-mint" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="ocean">
-                <span class="scheme-label">Ocean</span>
-                <span class="scheme-chips scheme-ocean" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="ember">
-                <span class="scheme-label">Ember</span>
-                <span class="scheme-chips scheme-ember" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
-              <button type="button" class="pickerOption" role="option" data-value="iris">
-                <span class="scheme-label">Iris</span>
-                <span class="scheme-chips scheme-iris" aria-hidden="true">
-                  <span></span><span></span><span></span><span></span>
-                </span>
-              </button>
+            <div id="schemePositioner" class="pickerPositioner">
+              <div id="schemeContent" class="pickerContent">
+                <div id="schemeList" class="pickerList">
+                  <button type="button" class="pickerOption" data-value="slate">
+                    <span class="scheme-label">Slate</span>
+                    <span class="scheme-chips scheme-slate" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="cedar">
+                    <span class="scheme-label">Cedar</span>
+                    <span class="scheme-chips scheme-cedar" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="mint">
+                    <span class="scheme-label">Mint</span>
+                    <span class="scheme-chips scheme-mint" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="ocean">
+                    <span class="scheme-label">Ocean</span>
+                    <span class="scheme-chips scheme-ocean" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="ember">
+                    <span class="scheme-label">Ember</span>
+                    <span class="scheme-chips scheme-ember" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                  <button type="button" class="pickerOption" data-value="iris">
+                    <span class="scheme-label">Iris</span>
+                    <span class="scheme-chips scheme-iris" aria-hidden="true">
+                      <span></span><span></span><span></span><span></span>
+                    </span>
+                  </button>
+                </div>
+              </div>
             </div>
+            <select id="schemeHidden" class="pickerHidden" aria-hidden="true"></select>
           </div>
         </label>
-        <label>
-          <span>Appearance</span>
-          <select id="colorMode">
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
-          </select>
+        <label id="modeLabel">
+          <span class="pickerTitle">Appearance</span>
+          <div id="modePicker" class="picker">
+            <button id="modeTrigger" type="button" class="pickerTrigger" aria-haspopup="listbox" aria-expanded="false">
+              <span id="modeValue">System</span>
+            </button>
+            <div id="modePositioner" class="pickerPositioner">
+              <div id="modeContent" class="pickerContent">
+                <div id="modeList" class="pickerList">
+                  <button type="button" class="pickerOption" data-value="system">System</button>
+                  <button type="button" class="pickerOption" data-value="light">Light</button>
+                  <button type="button" class="pickerOption" data-value="dark">Dark</button>
+                </div>
+              </div>
+            </div>
+            <select id="modeHidden" class="pickerHidden" aria-hidden="true"></select>
+          </div>
         </label>
         <label>
           <span>Font family (CSS)</span>

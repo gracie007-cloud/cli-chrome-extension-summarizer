@@ -656,6 +656,10 @@ select {
   cursor: pointer;
 }
 
+.pickerTrigger[data-state="open"] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
 .pickerTrigger:focus-visible {
   outline: none;
   border-color: color-mix(in srgb, var(--ui-focus) 45%, var(--border));
@@ -675,25 +679,32 @@ select {
   margin-left: auto;
 }
 
-.pickerList {
+.pickerPositioner {
   position: absolute;
   z-index: 20;
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  background: color-mix(in srgb, var(--panel) 88%, transparent);
+  min-width: 100%;
+}
+
+.pickerContent {
+  background: color-mix(in srgb, var(--panel) 86%, transparent);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 6px;
   box-shadow: var(--shadow);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  display: none;
-  gap: 4px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-.picker[data-open="true"] .pickerList {
+.pickerContent[hidden] {
+  display: none;
+}
+
+.pickerList {
   display: grid;
+  gap: 4px;
 }
 
 .pickerOption {
@@ -717,7 +728,11 @@ select {
   background: color-mix(in srgb, var(--accent) 16%, transparent);
 }
 
-.pickerOption.isSelected {
+.pickerOption[data-highlighted] {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.pickerOption[data-state="checked"] {
   background: color-mix(in srgb, var(--accent) 22%, transparent);
 }
 

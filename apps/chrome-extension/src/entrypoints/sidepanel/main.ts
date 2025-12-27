@@ -7,6 +7,7 @@ import { parseSseStream } from '../../lib/sse'
 import { splitStatusPercent } from '../../lib/status'
 import { applyTheme, type ColorMode, type ColorScheme } from '../../lib/theme'
 import { generateToken } from '../../lib/token'
+import { createZagSelect, type ZagSelectItem } from '../../lib/zag-select'
 
 type PanelToBg =
   | { type: 'panel:ready' }
@@ -60,22 +61,41 @@ const summarizeBtn = byId<HTMLButtonElement>('summarize')
 const drawerToggleBtn = byId<HTMLButtonElement>('drawerToggle')
 const advancedBtn = byId<HTMLButtonElement>('advanced')
 const autoEl = byId<HTMLInputElement>('auto')
-const lengthPresetEl = byId<HTMLSelectElement>('lengthPreset')
+const lengthLabelEl = byId<HTMLLabelElement>('lengthLabel')
+const lengthPickerEl = byId<HTMLElement>('lengthPicker')
+const lengthTriggerEl = byId<HTMLButtonElement>('lengthTrigger')
+const lengthValueEl = byId<HTMLSpanElement>('lengthValue')
+const lengthPositionerEl = byId<HTMLDivElement>('lengthPositioner')
+const lengthContentEl = byId<HTMLDivElement>('lengthContent')
+const lengthListEl = byId<HTMLDivElement>('lengthList')
+const lengthHiddenEl = byId<HTMLSelectElement>('lengthHidden')
 const lengthCustomEl = byId<HTMLInputElement>('lengthCustom')
 const sizeEl = byId<HTMLInputElement>('size')
+const schemeLabelEl = byId<HTMLLabelElement>('schemeLabel')
+const schemePickerEl = byId<HTMLElement>('schemePicker')
 const schemeTriggerEl = byId<HTMLButtonElement>('schemeTrigger')
-const schemeLabelEl = byId<HTMLSpanElement>('schemeLabel')
+const schemeValueEl = byId<HTMLSpanElement>('schemeValue')
 const schemeChipsEl = byId<HTMLSpanElement>('schemeChips')
+const schemePositionerEl = byId<HTMLDivElement>('schemePositioner')
+const schemeContentEl = byId<HTMLDivElement>('schemeContent')
 const schemeListEl = byId<HTMLDivElement>('schemeList')
-const schemeOptions = Array.from(schemeListEl.querySelectorAll<HTMLButtonElement>('.pickerOption'))
+const schemeHiddenEl = byId<HTMLSelectElement>('schemeHidden')
+const modeLabelEl = byId<HTMLLabelElement>('modeLabel')
+const modePickerEl = byId<HTMLElement>('modePicker')
 const modeTriggerEl = byId<HTMLButtonElement>('modeTrigger')
-const modeLabelEl = byId<HTMLSpanElement>('modeLabel')
+const modeValueEl = byId<HTMLSpanElement>('modeValue')
+const modePositionerEl = byId<HTMLDivElement>('modePositioner')
+const modeContentEl = byId<HTMLDivElement>('modeContent')
 const modeListEl = byId<HTMLDivElement>('modeList')
-const modeOptions = Array.from(modeListEl.querySelectorAll<HTMLButtonElement>('.pickerOption'))
+const modeHiddenEl = byId<HTMLSelectElement>('modeHidden')
+const fontLabelEl = byId<HTMLLabelElement>('fontLabel')
+const fontPickerEl = byId<HTMLElement>('fontPicker')
 const fontTriggerEl = byId<HTMLButtonElement>('fontTrigger')
-const fontLabelEl = byId<HTMLSpanElement>('fontLabel')
+const fontValueEl = byId<HTMLSpanElement>('fontValue')
+const fontPositionerEl = byId<HTMLDivElement>('fontPositioner')
+const fontContentEl = byId<HTMLDivElement>('fontContent')
 const fontListEl = byId<HTMLDivElement>('fontList')
-const fontOptions = Array.from(fontListEl.querySelectorAll<HTMLButtonElement>('.pickerOption'))
+const fontHiddenEl = byId<HTMLSelectElement>('fontHidden')
 
 const md = new MarkdownIt({
   html: false,
@@ -206,102 +226,6 @@ function applyTypography(fontFamily: string, fontSize: number) {
   document.documentElement.style.setProperty('--font-size', `${fontSize}px`)
 }
 
-type PickerState = {
-  el: HTMLElement
-  trigger: HTMLButtonElement
-  list: HTMLElement
-  isOpen: () => boolean
-  close: () => void
-}
-
-const pickerStates: PickerState[] = []
-
-function closeAllPickers(except?: PickerState) {
-  pickerStates.forEach((state) => {
-    if (state !== except) state.close()
-  })
-}
-
-document.addEventListener('click', (event) => {
-  const target = event.target as Node
-  pickerStates.forEach((state) => {
-    if (state.isOpen() && !state.el.contains(target)) state.close()
-  })
-})
-
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return
-  const openState = pickerStates.find((state) => state.isOpen())
-  if (!openState) return
-  event.preventDefault()
-  openState.close()
-  openState.trigger.focus()
-})
-
-function createPicker<T extends string>(opts: {
-  pickerEl: HTMLElement
-  triggerEl: HTMLButtonElement
-  labelEl: HTMLElement
-  listEl: HTMLElement
-  options: HTMLButtonElement[]
-  getLabel: (value: T) => string
-  renderValue?: (value: T) => void
-  onSelect: (value: T) => void
-  initialValue: T
-}) {
-  const { pickerEl, triggerEl, labelEl, listEl, options, getLabel, renderValue, onSelect } = opts
-  let current = opts.initialValue
-
-  const setOpen = (open: boolean) => {
-    pickerEl.setAttribute('data-open', open ? 'true' : 'false')
-    triggerEl.setAttribute('aria-expanded', open ? 'true' : 'false')
-    if (open) listEl.focus()
-  }
-
-  const state: PickerState = {
-    el: pickerEl,
-    trigger: triggerEl,
-    list: listEl,
-    isOpen: () => pickerEl.getAttribute('data-open') === 'true',
-    close: () => setOpen(false),
-  }
-  pickerStates.push(state)
-
-  function setValue(value: T) {
-    current = value
-    labelEl.textContent = getLabel(value)
-    renderValue?.(value)
-    options.forEach((option) => {
-      const selected = option.dataset.value === value
-      option.classList.toggle('isSelected', selected)
-      option.setAttribute('aria-selected', selected ? 'true' : 'false')
-    })
-  }
-
-  triggerEl.addEventListener('click', () => {
-    const open = state.isOpen()
-    if (!open) closeAllPickers(state)
-    setOpen(!open)
-  })
-
-  options.forEach((option) => {
-    option.addEventListener('click', () => {
-      const value = option.dataset.value as T | undefined
-      if (!value) return
-      setValue(value)
-      onSelect(value)
-      setOpen(false)
-    })
-  })
-
-  setValue(opts.initialValue)
-
-  return {
-    setValue,
-    getValue: () => current,
-  }
-}
-
 const schemeLabels: Record<ColorScheme, string> = {
   slate: 'Slate',
   cedar: 'Cedar',
@@ -324,66 +248,172 @@ const fontLabels = new Map<string, string>([
   ['ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace', 'Mono'],
 ])
 
-const schemePickerEl = schemeTriggerEl.closest('.picker')
-if (!schemePickerEl) throw new Error('Missing scheme picker')
-const modePickerEl = modeTriggerEl.closest('.picker')
-if (!modePickerEl) throw new Error('Missing mode picker')
-const fontPickerEl = fontTriggerEl.closest('.picker')
-if (!fontPickerEl) throw new Error('Missing font picker')
+const lengthItems: ZagSelectItem[] = [
+  { value: 'short', label: 'Short' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'long', label: 'Long' },
+  { value: 'xl', label: 'XL' },
+  { value: 'xxl', label: 'XXL' },
+  { value: '20k', label: '20k' },
+  { value: 'custom', label: 'Custom…' },
+]
 
-const _schemePicker = createPicker<ColorScheme>({
-  pickerEl: schemePickerEl,
-  triggerEl: schemeTriggerEl,
-  labelEl: schemeLabelEl,
-  listEl: schemeListEl,
-  options: schemeOptions,
-  getLabel: (value) => schemeLabels[value] ?? 'Custom',
-  renderValue: (value) => {
-    schemeChipsEl.className = `scheme-chips scheme-${value}`
+function buildItemMap(listEl: HTMLElement) {
+  const items = new Map<string, HTMLElement>()
+  listEl.querySelectorAll<HTMLElement>('.pickerOption').forEach((el) => {
+    const value = el.dataset.value
+    if (value) items.set(value, el)
+  })
+  return items
+}
+
+const lengthItemEls = buildItemMap(lengthListEl)
+const schemeItemEls = buildItemMap(schemeListEl)
+const modeItemEls = buildItemMap(modeListEl)
+const fontItemEls = buildItemMap(fontListEl)
+
+let currentLengthPreset = defaultSettings.length
+let syncingLength = false
+let syncingScheme = false
+let syncingMode = false
+let syncingFont = false
+
+const lengthPicker = createZagSelect({
+  id: 'length',
+  items: lengthItems,
+  value: defaultSettings.length,
+  elements: {
+    root: lengthPickerEl,
+    label: lengthLabelEl,
+    trigger: lengthTriggerEl,
+    positioner: lengthPositionerEl,
+    content: lengthContentEl,
+    list: lengthListEl,
+    hiddenSelect: lengthHiddenEl,
+    valueText: lengthValueEl,
+    items: lengthItemEls,
   },
-  onSelect: (value) => {
+  onValueChange: (value) => {
+    if (syncingLength) return
+    currentLengthPreset = value || defaultSettings.length
+    const isCustom = value === 'custom'
+    lengthCustomEl.hidden = !isCustom
+    if (isCustom) {
+      lengthCustomEl.focus()
+      return
+    }
+    send({ type: 'panel:setLength', value: value || defaultSettings.length })
+  },
+})
+
+const schemeItems: ZagSelectItem[] = Object.entries(schemeLabels).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+const schemePicker = createZagSelect({
+  id: 'scheme',
+  items: schemeItems,
+  value: defaultSettings.colorScheme,
+  elements: {
+    root: schemePickerEl,
+    label: schemeLabelEl,
+    trigger: schemeTriggerEl,
+    positioner: schemePositionerEl,
+    content: schemeContentEl,
+    list: schemeListEl,
+    hiddenSelect: schemeHiddenEl,
+    valueText: schemeValueEl,
+    items: schemeItemEls,
+  },
+  renderValue: (value) => {
+    const scheme = (value || defaultSettings.colorScheme) as ColorScheme
+    schemeChipsEl.className = `scheme-chips scheme-${scheme}`
+  },
+  onValueChange: (value) => {
+    if (syncingScheme) return
+    if (!value) return
     void (async () => {
-      const next = await patchSettings({ colorScheme: value })
+      const next = await patchSettings({ colorScheme: value as ColorScheme })
       applyTheme({ scheme: next.colorScheme, mode: next.colorMode })
     })()
   },
-  initialValue: 'slate',
 })
 
-const _modePicker = createPicker<ColorMode>({
-  pickerEl: modePickerEl,
-  triggerEl: modeTriggerEl,
-  labelEl: modeLabelEl,
-  listEl: modeListEl,
-  options: modeOptions,
-  getLabel: (value) => modeLabels[value] ?? 'System',
-  onSelect: (value) => {
+const modeItems: ZagSelectItem[] = Object.entries(modeLabels).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+const modePicker = createZagSelect({
+  id: 'mode',
+  items: modeItems,
+  value: defaultSettings.colorMode,
+  elements: {
+    root: modePickerEl,
+    label: modeLabelEl,
+    trigger: modeTriggerEl,
+    positioner: modePositionerEl,
+    content: modeContentEl,
+    list: modeListEl,
+    hiddenSelect: modeHiddenEl,
+    valueText: modeValueEl,
+    items: modeItemEls,
+  },
+  onValueChange: (value) => {
+    if (syncingMode) return
+    if (!value) return
     void (async () => {
-      const next = await patchSettings({ colorMode: value })
+      const next = await patchSettings({ colorMode: value as ColorMode })
       applyTheme({ scheme: next.colorScheme, mode: next.colorMode })
     })()
   },
-  initialValue: 'system',
 })
 
-const _fontPicker = createPicker<string>({
-  pickerEl: fontPickerEl,
-  triggerEl: fontTriggerEl,
-  labelEl: fontLabelEl,
-  listEl: fontListEl,
-  options: fontOptions,
-  getLabel: (value) => fontLabels.get(value) ?? 'Custom',
-  renderValue: (value) => {
-    fontLabelEl.title = value
+const fontItems: ZagSelectItem[] = Array.from(fontLabels.entries()).map(([value, label]) => ({
+  value,
+  label,
+}))
+
+const fontPicker = createZagSelect({
+  id: 'font',
+  items: fontItems,
+  value: defaultSettings.fontFamily,
+  elements: {
+    root: fontPickerEl,
+    label: fontLabelEl,
+    trigger: fontTriggerEl,
+    positioner: fontPositionerEl,
+    content: fontContentEl,
+    list: fontListEl,
+    hiddenSelect: fontHiddenEl,
+    valueText: fontValueEl,
+    items: fontItemEls,
   },
-  onSelect: (value) => {
+  renderValue: (value) => {
+    fontValueEl.title = value || defaultSettings.fontFamily
+  },
+  onValueChange: (value) => {
+    if (syncingFont) return
+    if (!value) return
     void (async () => {
       const next = await patchSettings({ fontFamily: value })
       applyTypography(next.fontFamily, next.fontSize)
     })()
   },
-  initialValue: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
 })
+
+function applyLengthSelection(value: string) {
+  const resolved = resolvePresetOrCustom({ value, presets: lengthPresets })
+  currentLengthPreset = resolved.presetValue
+  syncingLength = true
+  lengthPicker.setValue(resolved.presetValue)
+  queueMicrotask(() => {
+    syncingLength = false
+  })
+  lengthCustomEl.hidden = !resolved.isCustom
+  lengthCustomEl.value = resolved.customValue
+}
 
 type PlatformKind = 'mac' | 'windows' | 'linux' | 'other'
 
@@ -595,12 +625,7 @@ function maybeShowSetup(state: UiState) {
 
 function updateControls(state: UiState) {
   autoEl.checked = state.settings.autoSummarize
-  {
-    const resolved = resolvePresetOrCustom({ value: state.settings.length, presets: lengthPresets })
-    lengthPresetEl.value = resolved.presetValue
-    lengthCustomEl.hidden = !resolved.isCustom
-    lengthCustomEl.value = resolved.customValue
-  }
+  applyLengthSelection(state.settings.length)
   if (currentSource && state.tab.url && state.tab.url !== currentSource.url && !streaming) {
     currentSource = null
   }
@@ -719,20 +744,12 @@ drawerToggleBtn.addEventListener('click', () => toggleDrawer())
 advancedBtn.addEventListener('click', () => send({ type: 'panel:openOptions' }))
 
 autoEl.addEventListener('change', () => send({ type: 'panel:setAuto', value: autoEl.checked }))
-lengthPresetEl.addEventListener('change', () => {
-  lengthCustomEl.hidden = lengthPresetEl.value !== 'custom'
-  if (!lengthCustomEl.hidden) {
-    lengthCustomEl.focus()
-    return
-  }
-  send({ type: 'panel:setLength', value: lengthPresetEl.value || defaultSettings.length })
-})
 lengthCustomEl.addEventListener('change', () => {
-  if (lengthPresetEl.value !== 'custom') return
+  if (currentLengthPreset !== 'custom') return
   send({
     type: 'panel:setLength',
     value: readPresetOrCustomValue({
-      presetValue: lengthPresetEl.value,
+      presetValue: currentLengthPreset,
       customValue: lengthCustomEl.value,
       defaultValue: defaultSettings.length,
     }),
@@ -750,15 +767,22 @@ void (async () => {
   const s = await loadSettings()
   sizeEl.value = String(s.fontSize)
   autoEl.checked = s.autoSummarize
-  {
-    const resolved = resolvePresetOrCustom({ value: s.length, presets: lengthPresets })
-    lengthPresetEl.value = resolved.presetValue
-    lengthCustomEl.hidden = !resolved.isCustom
-    lengthCustomEl.value = resolved.customValue
-  }
+  applyLengthSelection(s.length)
+  syncingFont = true
   fontPicker.setValue(s.fontFamily)
+  queueMicrotask(() => {
+    syncingFont = false
+  })
+  syncingMode = true
   modePicker.setValue(s.colorMode)
+  queueMicrotask(() => {
+    syncingMode = false
+  })
+  syncingScheme = true
   schemePicker.setValue(s.colorScheme)
+  queueMicrotask(() => {
+    syncingScheme = false
+  })
   applyTypography(s.fontFamily, s.fontSize)
   applyTheme({ scheme: s.colorScheme, mode: s.colorMode })
   toggleDrawer(false, { animate: false })
