@@ -1,6 +1,7 @@
 import type { Command } from 'commander'
+import { handleDaemonRequest } from '../daemon/cli.js'
 import { refreshFree } from '../refresh-free.js'
-import { attachRichHelp, buildProgram, buildRefreshFreeHelp } from './help.js'
+import { attachRichHelp, buildDaemonHelp, buildProgram, buildRefreshFreeHelp } from './help.js'
 
 type HelpContext = {
   normalizedArgv: string[]
@@ -19,6 +20,10 @@ export function handleHelpRequest({
   const topic = normalizedArgv[1]?.toLowerCase()
   if (topic === 'refresh-free') {
     stdout.write(`${buildRefreshFreeHelp()}\n`)
+    return true
+  }
+  if (topic === 'daemon') {
+    stdout.write(`${buildDaemonHelp()}\n`)
     return true
   }
 
@@ -116,4 +121,14 @@ export async function handleRefreshFreeRequest({
     },
   })
   return true
+}
+
+export async function handleDaemonCliRequest(ctx: RefreshContext): Promise<boolean> {
+  return handleDaemonRequest({
+    normalizedArgv: ctx.normalizedArgv,
+    envForRun: ctx.envForRun,
+    fetchImpl: ctx.fetchImpl,
+    stdout: ctx.stdout,
+    stderr: ctx.stderr,
+  })
 }

@@ -16,7 +16,11 @@ import {
 import type { ExecFileFn } from '../markitdown.js'
 import type { FixedModelSpec } from '../model-spec.js'
 import { formatVersionLine } from '../version.js'
-import { handleHelpRequest, handleRefreshFreeRequest } from './cli-preflight.js'
+import {
+  handleDaemonCliRequest,
+  handleHelpRequest,
+  handleRefreshFreeRequest,
+} from './cli-preflight.js'
 import { parseCliProviderArg } from './env.js'
 import { handleFileInput, handleUrlAsset } from './flows/asset/input.js'
 import { summarizeAsset as summarizeAssetFlow } from './flows/asset/summary.js'
@@ -56,6 +60,17 @@ export async function runCli(
   }
   if (
     await handleRefreshFreeRequest({
+      normalizedArgv,
+      envForRun,
+      fetchImpl: fetch,
+      stdout,
+      stderr,
+    })
+  ) {
+    return
+  }
+  if (
+    await handleDaemonCliRequest({
       normalizedArgv,
       envForRun,
       fetchImpl: fetch,

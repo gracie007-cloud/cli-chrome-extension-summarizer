@@ -174,3 +174,21 @@ export function buildRefreshFreeHelp(): string {
     'With --set-default: also sets `model` to "free".',
   ].join('\n')
 }
+
+export function buildDaemonHelp(): string {
+  return [
+    'Usage: summarize daemon <command> [options]',
+    '',
+    'Commands:',
+    '  install   Install/upgrade the LaunchAgent and write ~/.summarize/daemon.json',
+    '  restart   Restart the LaunchAgent (launchctl kickstart)',
+    '  status    Check LaunchAgent + daemon health',
+    '  uninstall Unload LaunchAgent (moves plist to Trash)',
+    '  run       Run the daemon in the foreground (used by launchd)',
+    '',
+    'Options:',
+    '  --dev            Install LaunchAgent that runs src/cli.ts via tsx (repo dev mode)',
+    '  --port <n>       (default: 8787)',
+    '  --token <token>  (required for install)',
+  ].join('\n')
+}
