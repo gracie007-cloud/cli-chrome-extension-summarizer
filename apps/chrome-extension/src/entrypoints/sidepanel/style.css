@@ -256,7 +256,7 @@ header.isRunning .progressFill {
 
 header.isRunning.isIndeterminate .progressFill {
   width: 40%;
-  animation: progressSlide 1.05s ease-in-out infinite;
+  animation: progressBounce 1.15s cubic-bezier(0.22, 0.9, 0.25, 1) infinite alternate;
 }
 
 header.isError .progressFill {
@@ -268,15 +268,18 @@ main {
   padding: 12px;
 }
 
-@keyframes progressSlide {
+@keyframes progressBounce {
   0% {
-    transform: translateX(-55%);
+    transform: translateX(-60%);
   }
-  50% {
-    transform: translateX(75%);
+  55% {
+    transform: translateX(70%);
+  }
+  72% {
+    transform: translateX(62%);
   }
   100% {
-    transform: translateX(155%);
+    transform: translateX(75%);
   }
 }
 
