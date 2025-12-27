@@ -20,6 +20,7 @@ type UiState = {
 
 type BgToPanel =
   | { type: 'ui:state'; state: UiState }
+  | { type: 'ui:status'; status: string }
   | { type: 'summary:reset' }
   | { type: 'summary:chunk'; text: string }
   | { type: 'summary:meta'; model: string }
@@ -33,12 +34,14 @@ function byId<T extends HTMLElement>(id: string): T {
 }
 
 const subtitleEl = byId<HTMLDivElement>('subtitle')
+const drawerEl = byId<HTMLElement>('drawer')
 const setupEl = byId<HTMLDivElement>('setup')
 const statusEl = byId<HTMLDivElement>('status')
 const renderEl = byId<HTMLElement>('render')
 
 const summarizeBtn = byId<HTMLButtonElement>('summarize')
-const settingsBtn = byId<HTMLButtonElement>('settings')
+const drawerToggleBtn = byId<HTMLButtonElement>('drawerToggle')
+const advancedBtn = byId<HTMLButtonElement>('advanced')
 const autoEl = byId<HTMLInputElement>('auto')
 const modelEl = byId<HTMLInputElement>('model')
 const fontEl = byId<HTMLSelectElement>('font')
@@ -58,6 +61,8 @@ function setStatus(text: string) {
   statusEl.textContent = text
   const isError = text.toLowerCase().startsWith('error:') || text.toLowerCase().includes(' error')
   statusEl.classList.toggle('error', isError)
+  statusEl.classList.toggle('running', Boolean(text.trim()) && !isError)
+  statusEl.classList.toggle('hidden', !text.trim())
 }
 
 window.addEventListener('error', (event) => {
@@ -187,6 +192,9 @@ port.onMessage.addListener((msg: BgToPanel) => {
       currentState = msg.state
       updateControls(msg.state)
       return
+    case 'ui:status':
+      setStatus(msg.status)
+      return
     case 'summary:reset':
       markdown = ''
       renderEl.innerHTML = ''
@@ -210,8 +218,14 @@ function send(message: PanelToBg) {
   port.postMessage(message)
 }
 
+function toggleDrawer(force?: boolean) {
+  const next = typeof force === 'boolean' ? force : drawerEl.classList.contains('hidden')
+  drawerEl.classList.toggle('hidden', !next)
+}
+
 summarizeBtn.addEventListener('click', () => send({ type: 'panel:summarize' }))
-settingsBtn.addEventListener('click', () => send({ type: 'panel:openOptions' }))
+drawerToggleBtn.addEventListener('click', () => toggleDrawer())
+advancedBtn.addEventListener('click', () => send({ type: 'panel:openOptions' }))
 
 autoEl.addEventListener('change', () => send({ type: 'panel:setAuto', value: autoEl.checked }))
 modelEl.addEventListener('change', () =>
@@ -239,5 +253,6 @@ void (async () => {
   modelEl.value = s.model
   autoEl.checked = s.autoSummarize
   applyTypography(s.fontFamily, s.fontSize)
+  toggleDrawer(false)
   send({ type: 'panel:ready' })
 })()

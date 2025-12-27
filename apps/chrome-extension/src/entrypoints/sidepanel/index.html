@@ -13,33 +13,44 @@
         <div id="subtitle" class="subtitle"></div>
       </div>
       <div class="controls">
-        <button id="summarize" type="button">Summarize</button>
-        <button id="settings" type="button">Settings</button>
+        <button id="summarize" type="button" class="primary">Summarize</button>
+        <button id="drawerToggle" type="button" class="icon" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.18 7.18 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 13.9 1h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.23-1.12.54-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L2.71 7.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L2.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.51.4 1.05.71 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.23 1.12-.54 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"
+            />
+          </svg>
+        </button>
       </div>
     </header>
 
-    <section class="bar">
-      <label class="toggle">
-        <input id="auto" type="checkbox" />
-        <span>Auto</span>
-      </label>
-      <label class="model">
-        <span>Model</span>
-        <input id="model" type="text" placeholder="auto / free / openai/…" />
-      </label>
-      <label class="font">
-        <span>Font</span>
-        <select id="font">
-          <option value="-apple-system, BlinkMacSystemFont, &quot;SF Pro Text&quot;, system-ui, sans-serif">SF</option>
-          <option value="Georgia, serif">Georgia</option>
-          <option value="Iowan Old Style, Palatino, serif">Iowan</option>
-          <option value="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">Mono</option>
-        </select>
-      </label>
-      <label class="size">
-        <span>Size</span>
-        <input id="size" type="range" min="12" max="20" step="1" />
-      </label>
+    <section id="drawer" class="drawer hidden" aria-label="Controls">
+      <div class="drawerGrid">
+        <label class="toggle">
+          <input id="auto" type="checkbox" />
+          <span>Auto</span>
+        </label>
+        <label class="model">
+          <span>Model</span>
+          <input id="model" type="text" placeholder="auto / free / openai/…" />
+        </label>
+        <label class="font">
+          <span>Font</span>
+          <select id="font">
+            <option value="-apple-system, BlinkMacSystemFont, &quot;SF Pro Text&quot;, system-ui, sans-serif">SF</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="Iowan Old Style, Palatino, serif">Iowan</option>
+            <option value="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">Mono</option>
+          </select>
+        </label>
+        <label class="size">
+          <span>Size</span>
+          <input id="size" type="range" min="12" max="20" step="1" />
+        </label>
+      </div>
+      <div class="drawerFooter">
+        <button id="advanced" type="button" class="ghost">Advanced…</button>
+      </div>
     </section>
 
     <main>
@@ -52,4 +63,3 @@
     <script type="module" src="./main.ts"></script>
   </body>
 </html>
-

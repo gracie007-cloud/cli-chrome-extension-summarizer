@@ -12,6 +12,7 @@ type PanelToBg =
 
 type BgToPanel =
   | { type: 'ui:state'; state: UiState }
+  | { type: 'ui:status'; status: string }
   | { type: 'summary:reset' }
   | { type: 'summary:chunk'; text: string }
   | { type: 'summary:meta'; model: string }
@@ -156,8 +157,10 @@ export default defineBackground(() => {
   let runController: AbortController | null = null
   let lastNavAt = 0
   let gotAnyChunkForRun = false
+  let streamedAnyNonWhitespace = false
 
   const send = (msg: BgToPanel) => panelPort?.postMessage(msg)
+  const sendStatus = (status: string) => send({ type: 'ui:status', status })
 
   const emitState = async (status: string) => {
     const settings = await loadSettings()
@@ -195,18 +198,20 @@ export default defineBackground(() => {
     runController?.abort()
     runController = new AbortController()
     gotAnyChunkForRun = false
+    streamedAnyNonWhitespace = false
 
     send({ type: 'summary:reset' })
-    await emitState(`Extracting… (${reason})`)
+    sendStatus(`Extracting… (${reason})`)
 
     const extractedAttempt = await extractFromTab(tab.id, settings.maxChars)
     if (!extractedAttempt.ok) {
       send({ type: 'summary:error', message: extractedAttempt.error })
+      sendStatus(`Error: ${extractedAttempt.error}`)
       return
     }
     const extracted = extractedAttempt.data
 
-    await emitState('Requesting daemon…')
+    sendStatus('Requesting daemon…')
     let id: string
     try {
       const res = await fetch('http://127.0.0.1:8787/v1/summarize', {
@@ -231,11 +236,13 @@ export default defineBackground(() => {
       id = json.id
     } catch (err) {
       if (runController.signal.aborted) return
-      send({ type: 'summary:error', message: friendlyFetchError(err, 'Daemon request failed') })
+      const message = friendlyFetchError(err, 'Daemon request failed')
+      send({ type: 'summary:error', message })
+      sendStatus(`Error: ${message}`)
       return
     }
 
-    await emitState('Streaming…')
+    sendStatus('Streaming…')
 
     try {
       const res = await fetch(`http://127.0.0.1:8787/v1/summarize/${id}/events`, {
@@ -249,7 +256,9 @@ export default defineBackground(() => {
         if (msg.event === 'chunk') {
           const data = JSON.parse(msg.data) as { text: string }
           gotAnyChunkForRun = gotAnyChunkForRun || Boolean(data.text)
+          streamedAnyNonWhitespace = streamedAnyNonWhitespace || data.text.trim().length > 0
           send({ type: 'summary:chunk', text: data.text })
+          if (streamedAnyNonWhitespace) sendStatus('')
         } else if (msg.event === 'meta') {
           const data = JSON.parse(msg.data) as { model: string }
           send({ type: 'summary:meta', model: data.model })
@@ -262,13 +271,21 @@ export default defineBackground(() => {
         }
       }
 
+      if (!streamedAnyNonWhitespace) {
+        const message = 'Model returned no output.'
+        send({ type: 'summary:error', message })
+        sendStatus(`Error: ${message}`)
+        return
+      }
+
       lastSummarizedUrl = extracted.url
       send({ type: 'summary:done' })
-      await emitState(gotAnyChunkForRun ? 'Done' : 'Done (no output)')
+      sendStatus('')
     } catch (err) {
       if (runController.signal.aborted) return
-      send({ type: 'summary:error', message: friendlyFetchError(err, 'Stream failed') })
-      await emitState('Error')
+      const message = friendlyFetchError(err, 'Stream failed')
+      send({ type: 'summary:error', message })
+      sendStatus(`Error: ${message}`)
     }
   }
 
@@ -287,7 +304,7 @@ export default defineBackground(() => {
     port.onMessage.addListener((msg: PanelToBg) => {
       switch (msg.type) {
         case 'panel:ready':
-          void emitState('Ready')
+          void emitState('')
           void summarizeActiveTab('panel-open')
           return
         case 'panel:summarize':
@@ -296,14 +313,14 @@ export default defineBackground(() => {
         case 'panel:setAuto':
           void (async () => {
             await patchSettings({ autoSummarize: msg.value })
-            void emitState('Ready')
+            void emitState('')
             if (msg.value) void summarizeActiveTab('auto-enabled')
           })()
           return
         case 'panel:setModel':
           void (async () => {
             await patchSettings({ model: msg.value })
-            void emitState('Ready')
+            void emitState('')
           })()
           return
         case 'panel:openOptions':
@@ -317,18 +334,18 @@ export default defineBackground(() => {
     const now = Date.now()
     if (now - lastNavAt < 700) return
     lastNavAt = now
-    void emitState('Ready')
+    void emitState('')
     void summarizeActiveTab('spa-nav')
   })
 
   chrome.tabs.onActivated.addListener(() => {
-    void emitState('Ready')
+    void emitState('')
     void summarizeActiveTab('tab-activated')
   })
 
   chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
     if (changeInfo.status === 'complete') {
-      void emitState('Ready')
+      void emitState('')
       void summarizeActiveTab('tab-updated')
     }
   })
