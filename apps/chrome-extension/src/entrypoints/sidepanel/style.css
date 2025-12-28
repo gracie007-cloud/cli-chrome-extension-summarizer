@@ -637,6 +637,11 @@ button.ghost:hover {
   user-select: none;
 }
 
+.drawer .checkboxRoot {
+  display: inline-flex;
+  flex-direction: row;
+}
+
 .checkboxRoot[data-disabled] {
   opacity: 0.6;
   cursor: not-allowed;
