@@ -8,8 +8,7 @@ import type { FixedModelSpec } from '../model-spec.js'
 import type { AssetSummaryContext, SummarizeAssetArgs } from '../run/flows/asset/summary.js'
 import { summarizeAsset as summarizeAssetFlow } from '../run/flows/asset/summary.js'
 import type { UrlFlowContext } from '../run/flows/url/types.js'
-import { resolveConfigState } from '../run/run-config.js'
-import { resolveEnvState } from '../run/run-env.js'
+import { resolveRunContextState } from '../run/run-context.js'
 import { createRunMetrics } from '../run/run-metrics.js'
 import { resolveModelSelection } from '../run/run-models.js'
 import { resolveDesiredOutputTokens } from '../run/run-output.js'
@@ -88,16 +87,6 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
     configForCli,
     openaiUseChatCompletions,
     configModelLabel,
-  } = resolveConfigState({
-    envForRun,
-    programOpts: { videoMode: 'auto' },
-    languageExplicitlySet,
-    videoModeExplicitlySet: false,
-    cliFlagPresent: false,
-    cliProviderArg: null,
-  })
-
-  const {
     apiKey,
     openrouterApiKey,
     openrouterConfigured,
@@ -117,7 +106,15 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
     apifyToken,
     ytDlpPath,
     falApiKey,
-  } = resolveEnvState({ env: envForRun, envForRun, configForCli })
+  } = resolveRunContextState({
+    env: envForRun,
+    envForRun,
+    programOpts: { videoMode: 'auto' },
+    languageExplicitlySet,
+    videoModeExplicitlySet: false,
+    cliFlagPresent: false,
+    cliProviderArg: null,
+  })
 
   const {
     requestedModel,

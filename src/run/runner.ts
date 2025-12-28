@@ -24,8 +24,7 @@ import { summarizeAsset as summarizeAssetFlow } from './flows/asset/summary.js'
 import { runUrlFlow } from './flows/url/flow.js'
 import { attachRichHelp, buildProgram } from './help.js'
 import { createProgressGate } from './progress.js'
-import { resolveConfigState } from './run-config.js'
-import { resolveEnvState } from './run-env.js'
+import { resolveRunContextState } from './run-context.js'
 import { resolveRunInput } from './run-input.js'
 import { createRunMetrics } from './run-metrics.js'
 import { resolveModelSelection } from './run-models.js'
@@ -313,7 +312,27 @@ export async function runCli(
     configForCli,
     openaiUseChatCompletions,
     configModelLabel,
-  } = resolveConfigState({
+    apiKey,
+    openrouterApiKey,
+    openrouterConfigured,
+    openaiTranscriptionKey,
+    xaiApiKey,
+    googleApiKey,
+    anthropicApiKey,
+    zaiApiKey,
+    zaiBaseUrl,
+    providerBaseUrls,
+    firecrawlApiKey,
+    firecrawlConfigured,
+    googleConfigured,
+    anthropicConfigured,
+    apifyToken,
+    ytDlpPath,
+    falApiKey,
+    cliAvailability,
+    envForAuto,
+  } = resolveRunContextState({
+    env,
     envForRun,
     programOpts: program.opts() as Record<string, unknown>,
     languageExplicitlySet,
@@ -342,27 +361,6 @@ export async function runCli(
   })
 
   try {
-    const {
-      apiKey,
-      openrouterApiKey,
-      openrouterConfigured,
-      openaiTranscriptionKey,
-      xaiApiKey,
-      googleApiKey,
-      anthropicApiKey,
-      zaiApiKey,
-      zaiBaseUrl,
-      providerBaseUrls,
-      firecrawlApiKey,
-      firecrawlConfigured,
-      googleConfigured,
-      anthropicConfigured,
-      apifyToken,
-      ytDlpPath,
-      falApiKey,
-      cliAvailability,
-      envForAuto,
-    } = resolveEnvState({ env, envForRun, configForCli })
     if (markdownModeExplicitlySet && format !== 'markdown') {
       throw new Error('--markdown-mode is only supported with --format md')
     }

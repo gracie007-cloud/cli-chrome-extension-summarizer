@@ -7,20 +7,20 @@ summary: "Refactor guide: shared run context factory for CLI + daemon."
 Goal: single factory for run context (env, config, flags, metrics).
 
 ## Steps
-- [ ] Inventory duplicated setup.
+- [x] Inventory duplicated setup.
   - Files: `src/run/runner.ts`, `src/daemon/flow-context.ts`.
-- [ ] Define `RunContext` type.
+- [x] Define `RunContext` type.
   - Includes env, config, model selection, metrics hooks, overrides.
-- [ ] Create factory function.
+- [x] Create factory function.
   - New file: `src/run/run-context.ts`.
   - Inputs: base env, overrides, output sinks.
-- [ ] Migrate CLI to factory.
+- [x] Migrate CLI to factory.
   - Replace inline assembly in `runCli`.
-- [ ] Migrate daemon to factory.
+- [x] Migrate daemon to factory.
   - Replace `createDaemonUrlFlowContext` setup pieces.
-- [ ] Align defaults and precedence.
+- [x] Align defaults and precedence.
   - Confirm behavior matches existing tests.
-- [ ] Add tests for context output.
+- [x] Add tests for context output.
   - Small unit tests for precedence and fields.
 
 ## Done When
