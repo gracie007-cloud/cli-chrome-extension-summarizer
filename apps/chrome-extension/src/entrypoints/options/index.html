@@ -68,46 +68,41 @@
               />
             </div>
           </label>
-          <div class="advancedPanel">
-            <div class="advancedTitle">Model + prompt</div>
-            <div class="advancedGrid">
-              <label>
-                <span>Model</span>
-                <div class="combo">
-                  <select id="modelPreset">
-                    <option value="auto">Auto</option>
-                    <option value="custom">Custom…</option>
-                  </select>
-                  <input
-                    id="modelCustom"
-                    type="text"
-                    placeholder="auto"
-                    autocapitalize="off"
-                    autocomplete="off"
-                    spellcheck="false"
-                    hidden
-                  />
-                </div>
-                <div class="hint">
-                  Tip: configure “free” models via <code>summarize refresh-free</code> (needs <code>OPENROUTER_API_KEY</code>). Writes
-                  <code>~/.summarize/config.json</code> (updates <code>models.free</code>). Add <code>--set-default</code> to also set
-                  your default model to <code>free</code>.
-                </div>
-              </label>
-              <label>
-                <span>Prompt override</span>
-                <textarea
-                  id="promptOverride"
-                  rows="6"
-                  placeholder="Custom instructions (prefix). Context + content still appended."
-                ></textarea>
-              </label>
-              <label>
-                <span>Max chars (extracted)</span>
-                <input id="maxChars" type="number" min="20000" step="10000" />
-              </label>
+          <label>
+            <span>Model</span>
+            <div class="combo">
+              <select id="modelPreset">
+                <option value="auto">Auto</option>
+                <option value="custom">Custom…</option>
+              </select>
+              <input
+                id="modelCustom"
+                type="text"
+                placeholder="auto"
+                autocapitalize="off"
+                autocomplete="off"
+                spellcheck="false"
+                hidden
+              />
             </div>
-          </div>
+            <div class="hint">
+              Tip: configure “free” models via <code>summarize refresh-free</code> (needs <code>OPENROUTER_API_KEY</code>). Writes
+              <code>~/.summarize/config.json</code> (updates <code>models.free</code>). Add <code>--set-default</code> to also set
+              your default model to <code>free</code>.
+            </div>
+          </label>
+          <label>
+            <span>Prompt override</span>
+            <textarea
+              id="promptOverride"
+              rows="6"
+              placeholder="Custom instructions (prefix). Context + content still appended."
+            ></textarea>
+          </label>
+          <label>
+            <span>Max chars (extracted)</span>
+            <input id="maxChars" type="number" min="20000" step="10000" />
+          </label>
         </section>
 
         <section class="section">

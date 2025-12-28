@@ -427,26 +427,6 @@ form {
   pointer-events: auto;
 }
 
-.advancedPanel {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--surface);
-  padding: 6px 10px;
-}
-
-.advancedTitle {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: 0.3px;
-}
-
-.advancedGrid {
-  display: grid;
-  gap: 8px;
-  margin-top: 8px;
-}
-
 label {
   display: grid;
   gap: 5px;
