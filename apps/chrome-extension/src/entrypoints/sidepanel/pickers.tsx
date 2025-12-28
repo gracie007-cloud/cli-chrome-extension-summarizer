@@ -134,15 +134,11 @@ function LengthField({
   variant?: 'grid' | 'mini'
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const shouldFocusCustomInputRef = useRef(false)
   const resolved = useMemo(() => resolvePresetOrCustom({ value, presets: lengthPresets }), [value])
   const [presetValue, setPresetValue] = useState(resolved.presetValue)
   const [customValue, setCustomValue] = useState(resolved.customValue)
   const portalRoot = getOverlayRoot()
-  const labelProps = api.getLabelProps()
-  const resolvedLabelProps =
-    presetValue === 'custom'
-      ? { ...labelProps, htmlFor: 'lengthCustom', onClick: undefined }
-      : labelProps
 
   useEffect(() => {
     setPresetValue(resolved.presetValue)
@@ -157,12 +153,25 @@ function LengthField({
       const nextValue = next || defaultSettings.length
       setPresetValue(nextValue)
       if (nextValue === 'custom') {
-        requestAnimationFrame(() => inputRef.current?.focus())
+        shouldFocusCustomInputRef.current = true
         return
       }
       onValueChange(nextValue)
     },
   })
+
+  const labelProps = api.getLabelProps()
+  const resolvedLabelProps =
+    presetValue === 'custom'
+      ? { ...labelProps, htmlFor: 'lengthCustom', onClick: undefined }
+      : labelProps
+
+  useEffect(() => {
+    if (presetValue !== 'custom') return
+    if (!shouldFocusCustomInputRef.current) return
+    shouldFocusCustomInputRef.current = false
+    requestAnimationFrame(() => inputRef.current?.focus())
+  }, [presetValue])
 
   const commitCustom = () => {
     const next = readPresetOrCustomValue({
