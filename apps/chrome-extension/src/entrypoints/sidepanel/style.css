@@ -568,10 +568,14 @@ button.ghost:hover {
 }
 
 .drawer {
+  position: relative;
+  z-index: 5;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   padding: 10px 12px;
   box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .drawerGrid {
@@ -676,6 +680,11 @@ select {
 
 .picker {
   position: relative;
+  z-index: 0;
+}
+
+.picker[data-state="open"] {
+  z-index: 2;
 }
 
 .pickerTrigger {
