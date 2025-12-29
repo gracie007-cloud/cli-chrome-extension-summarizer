@@ -120,8 +120,10 @@ async function seedSettings(harness: ExtensionHarness, settings: Record<string, 
   const background =
     harness.context.serviceWorkers()[0] ??
     (await harness.context.waitForEvent('serviceworker', { timeout: 15_000 }))
-  await background.evaluate((payload) => {
-    chrome.storage.local.set({ settings: payload })
+  await background.evaluate(async (payload) => {
+    await new Promise<void>((resolve) => {
+      chrome.storage.local.set({ settings: payload }, () => resolve())
+    })
   }, settings)
 }
 
