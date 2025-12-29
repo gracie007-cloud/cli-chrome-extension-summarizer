@@ -54,24 +54,27 @@
       <article id="render" class="render"></article>
       <pre id="raw" class="raw hidden"></pre>
 
-      <section id="chatContainer" class="chatContainer">
-        <div id="chatMessages" class="chatMessages isHidden"></div>
-        <div class="chatInputRow">
-          <textarea id="chatInput" class="chatInput" placeholder="Ask about this page..." rows="1"></textarea>
-          <button id="chatSend" type="button" class="ghost chatSendBtn" aria-label="Send">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-          </button>
-        </div>
-        <div id="chatContextStatus" class="chatContextStatus isHidden"></div>
-        <div id="chatMetricsSlot" class="chatMetricsSlot"></div>
-      </section>
-
       <div id="metricsHome">
         <div id="metrics" class="metrics hidden"></div>
       </div>
+
+      <section id="chatContainer" class="chatContainer">
+        <div id="chatMessages" class="chatMessages isHidden"></div>
+        <div id="chatContextStatus" class="chatContextStatus isHidden"></div>
+        <div id="chatMetricsSlot" class="chatMetricsSlot"></div>
+      </section>
     </main>
+
+    <div id="chatDock" class="chatDock">
+      <div class="chatInputRow">
+        <textarea id="chatInput" class="chatInput" placeholder="Ask about this page..." rows="1"></textarea>
+        <button id="chatSend" type="button" class="ghost chatSendBtn" aria-label="Send">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
 
     <script type="module" src="./main.ts"></script>
   </body>

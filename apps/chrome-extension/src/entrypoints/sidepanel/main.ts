@@ -53,6 +53,7 @@ const renderEl = byId<HTMLElement>('render')
 const metricsEl = byId<HTMLDivElement>('metrics')
 const metricsHomeEl = byId<HTMLDivElement>('metricsHome')
 const chatMetricsSlotEl = byId<HTMLDivElement>('chatMetricsSlot')
+const chatDockEl = byId<HTMLDivElement>('chatDock')
 
 const summarizeBtn = byId<HTMLButtonElement>('summarize')
 const drawerToggleBtn = byId<HTMLButtonElement>('drawerToggle')
@@ -133,6 +134,15 @@ const headerController = createHeaderController({
 
 headerController.updateHeaderOffset()
 window.addEventListener('resize', headerController.updateHeaderOffset)
+
+const updateChatDockHeight = () => {
+  const height = chatDockEl.getBoundingClientRect().height
+  document.documentElement.style.setProperty('--chat-dock-height', `${height}px`)
+}
+
+updateChatDockHeight()
+const chatDockObserver = new ResizeObserver(() => updateChatDockHeight())
+chatDockObserver.observe(chatDockEl)
 
 function normalizeUrl(value: string) {
   try {
@@ -546,6 +556,7 @@ function syncHoverToggle() {
 
 function applyChatEnabled() {
   chatContainerEl.toggleAttribute('hidden', !chatEnabledValue)
+  chatDockEl.toggleAttribute('hidden', !chatEnabledValue)
   if (!chatEnabledValue) {
     clearMetricsForMode('chat')
     resetChatState()
