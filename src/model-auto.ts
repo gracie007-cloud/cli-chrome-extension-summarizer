@@ -1,3 +1,4 @@
+import { getModels } from '@mariozechner/pi-ai'
 import type { AutoRule, AutoRuleKind, CliProvider, SummarizeConfig } from './config.js'
 import { normalizeGatewayStyleModelId, parseGatewayStyleModelId } from './llm/model-id.js'
 import type { LiteLlmCatalog } from './pricing/litellm.js'
@@ -15,6 +16,7 @@ export type AutoSelectionInput = {
   config: SummarizeConfig | null
   catalog: LiteLlmCatalog | null
   openrouterProvidersFromEnv: string[] | null
+  openrouterModelIds?: string[] | null
   cliAvailability?: Partial<Record<CliProvider, boolean>>
 }
 
@@ -35,6 +37,73 @@ export type AutoModelAttempt = {
     | 'CLI_CODEX'
     | 'CLI_GEMINI'
   debug: string
+}
+
+type OpenRouterModelIndex = {
+  byId: Map<string, string>
+  bySlug: Map<string, Set<string>>
+}
+
+let cachedOpenRouterIndex: OpenRouterModelIndex | null = null
+let cachedOpenRouterIndexReady = false
+
+function buildOpenRouterModelIndex(modelIds: string[]): OpenRouterModelIndex {
+  const byId = new Map<string, string>()
+  const bySlug = new Map<string, Set<string>>()
+  for (const raw of modelIds) {
+    const trimmed = raw.trim()
+    if (trimmed.length === 0) continue
+    if (!trimmed.includes('/')) continue
+    const normalized = trimmed.toLowerCase()
+    // Preserve original casing for display while indexing by lowercase.
+    if (!byId.has(normalized)) byId.set(normalized, trimmed)
+    const slash = normalized.indexOf('/')
+    if (slash === -1 || slash === normalized.length - 1) continue
+    const slug = normalized.slice(slash + 1)
+    let matches = bySlug.get(slug)
+    if (!matches) {
+      matches = new Set()
+      bySlug.set(slug, matches)
+    }
+    matches.add(normalized)
+  }
+  return { byId, bySlug }
+}
+
+function getOpenRouterModelIndex(
+  override: string[] | null | undefined
+): OpenRouterModelIndex | null {
+  // Tests can inject a deterministic OpenRouter model list to avoid SDK coupling.
+  if (Array.isArray(override)) return buildOpenRouterModelIndex(override)
+  // Lazy, process-wide cache to avoid recomputing the SDK catalog.
+  if (cachedOpenRouterIndexReady) return cachedOpenRouterIndex
+  cachedOpenRouterIndexReady = true
+  const ids = getModels('openrouter').map((model) => model.id)
+  cachedOpenRouterIndex = ids.length > 0 ? buildOpenRouterModelIndex(ids) : null
+  return cachedOpenRouterIndex
+}
+
+function resolveOpenRouterModelIdForNative({
+  nativeModelId,
+  index,
+}: {
+  nativeModelId: string
+  index: OpenRouterModelIndex | null
+}): string | null {
+  if (!index) return null
+  const canonical = normalizeGatewayStyleModelId(nativeModelId)
+  const canonicalLower = canonical.toLowerCase()
+  // Prefer exact match on canonical <provider>/<model> when OpenRouter mirrors the id.
+  const direct = index.byId.get(canonicalLower)
+  if (direct) return direct
+  const slash = canonicalLower.indexOf('/')
+  if (slash === -1 || slash === canonicalLower.length - 1) return null
+  // Fall back to a unique slug match (author differs, e.g. xai → x-ai).
+  const slug = canonicalLower.slice(slash + 1)
+  const matches = index.bySlug.get(slug)
+  if (!matches || matches.size !== 1) return null
+  const only = matches.values().next().value as string | undefined
+  return only ? index.byId.get(only) ?? null : null
 }
 
 const DEFAULT_RULES: AutoRule[] = [
@@ -316,6 +385,8 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
     config: input.config,
   })
   const candidates = prependCliCandidates({ candidates: baseCandidates, config: input.config })
+  // Resolve OpenRouter ids once per run (or use injected test list).
+  const openrouterIndex = getOpenRouterModelIndex(input.openrouterModelIds)
 
   const attempts: AutoModelAttempt[] = []
   for (const modelRawEntry of candidates) {
@@ -446,12 +517,18 @@ export function buildAutoModelAttempts(input: AutoSelectionInput): AutoModelAtte
     const canAddOpenRouterFallback =
       !input.requiresVideoUnderstanding && envHasKey(input.env, 'OPENROUTER_API_KEY')
     if (canAddOpenRouterFallback) {
-      const slug = normalizeGatewayStyleModelId(modelRaw)
-      addAttempt(`openrouter/${slug}`, {
-        openrouter: true,
-        openrouterProviders: input.openrouterProvidersFromEnv,
-        transport: 'openrouter',
+      // Map native provider/model to OpenRouter author/slug; skip when ambiguous.
+      const openrouterModelId = resolveOpenRouterModelIdForNative({
+        nativeModelId: modelRaw,
+        index: openrouterIndex,
       })
+      if (openrouterModelId) {
+        addAttempt(`openrouter/${openrouterModelId}`, {
+          openrouter: true,
+          openrouterProviders: input.openrouterProvidersFromEnv,
+          transport: 'openrouter',
+        })
+      }
     }
   }
 

@@ -8,7 +8,7 @@ describe('auto model selection', () => {
     const config: SummarizeConfig = {
       model: {
         mode: 'auto',
-        rules: [{ candidates: ['openai/gpt-5-mini', 'xai/grok-4-fast-non-reasoning'] }],
+        rules: [{ candidates: ['openai/gpt-5-mini', 'xai/grok-4-fast'] }],
       },
     }
     const attempts = buildAutoModelAttempts({
@@ -20,12 +20,151 @@ describe('auto model selection', () => {
       config,
       catalog: null,
       openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['openai/gpt-5-mini', 'x-ai/grok-4-fast'],
     })
 
     expect(attempts[0]?.userModelId).toBe('openai/gpt-5-mini')
     expect(attempts[1]?.userModelId).toBe('openrouter/openai/gpt-5-mini')
-    expect(attempts[2]?.userModelId).toBe('xai/grok-4-fast-non-reasoning')
-    expect(attempts[3]?.userModelId).toBe('openrouter/xai/grok-4-fast-non-reasoning')
+    expect(attempts[2]?.userModelId).toBe('xai/grok-4-fast')
+    expect(attempts[3]?.userModelId).toBe('openrouter/x-ai/grok-4-fast')
+  })
+
+  it('skips OpenRouter fallback when no mapping is found', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['xai/grok-4-fast-non-reasoning'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['openai/gpt-5-mini', 'x-ai/grok-4-fast'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual(['xai/grok-4-fast-non-reasoning'])
+  })
+
+  it('skips OpenRouter fallback when multiple OpenRouter ids match the same slug', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['xai/grok-4-fast'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['x-ai/grok-4-fast', 'other/grok-4-fast'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual(['xai/grok-4-fast'])
+  })
+
+  it('prefers exact OpenRouter id even if slug is ambiguous', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['xai/grok-4-fast'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['xai/grok-4-fast', 'other/grok-4-fast'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual([
+      'xai/grok-4-fast',
+      'openrouter/xai/grok-4-fast',
+    ])
+  })
+
+  it('matches OpenRouter ids case-insensitively', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['openai/gpt-5-mini'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['OpenAI/GPT-5-Mini'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual([
+      'openai/gpt-5-mini',
+      'openrouter/openai/gpt-5-mini',
+    ])
+  })
+
+  it('does not add OpenRouter fallback without OPENROUTER_API_KEY', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['openai/gpt-5-mini'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: {},
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: ['openai/gpt-5-mini'],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual(['openai/gpt-5-mini'])
+  })
+
+  it('skips OpenRouter fallback when OpenRouter catalog is empty', () => {
+    const config: SummarizeConfig = {
+      model: {
+        mode: 'auto',
+        rules: [{ candidates: ['openai/gpt-5-mini'] }],
+      },
+    }
+    const attempts = buildAutoModelAttempts({
+      kind: 'text',
+      promptTokens: 100,
+      desiredOutputTokens: 50,
+      requiresVideoUnderstanding: false,
+      env: { OPENROUTER_API_KEY: 'sk-or-test' },
+      config,
+      catalog: null,
+      openrouterProvidersFromEnv: null,
+      openrouterModelIds: [],
+    })
+
+    expect(attempts.map((a) => a.userModelId)).toEqual(['openai/gpt-5-mini'])
   })
 
   it('adds an OpenRouter fallback attempt when OPENROUTER_API_KEY is set', () => {
