@@ -312,6 +312,7 @@ test('sidepanel updates title after stream when tab title changes', async () => 
   const harness = await launchExtension()
 
   try {
+    await mockDaemonSummarize(harness)
     await seedSettings(harness, { token: 'test-token' })
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
     const sseBody = [
@@ -367,6 +368,7 @@ test('sidepanel clears summary when tab url changes', async () => {
   const harness = await launchExtension()
 
   try {
+    await mockDaemonSummarize(harness)
     await seedSettings(harness, { token: 'test-token' })
     const page = await openExtensionPage(harness, 'sidepanel.html', '#title')
     const sseBody = [
@@ -482,6 +484,7 @@ test('sidepanel updates title while streaming on same URL', async () => {
   const harness = await launchExtension()
 
   try {
+    await mockDaemonSummarize(harness)
     let releaseSse: (() => void) | null = null
     const sseGate = new Promise<void>((resolve) => {
       releaseSse = resolve
@@ -533,6 +536,86 @@ test('sidepanel updates title while streaming on same URL', async () => {
 
     releaseSse?.()
     await new Promise((resolve) => setTimeout(resolve, 200))
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
+test('hover tooltip proxies daemon calls via background (no page-origin localhost fetch)', async () => {
+  test.setTimeout(30_000)
+  const harness = await launchExtension()
+
+  try {
+    await seedSettings(harness, { token: 'test-token', hoverSummaries: true })
+
+    let summarizeCalls = 0
+    let eventsCalls = 0
+    let badOrigin: string | null = null
+
+    const recordOrigin = (origin: string | undefined) => {
+      if (!origin) return
+      if (origin !== `chrome-extension://${harness.extensionId}`) badOrigin = origin
+    }
+
+    await harness.context.route('http://127.0.0.1:8787/v1/summarize', async (route) => {
+      summarizeCalls += 1
+      recordOrigin(route.request().headers()['origin'])
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ok: true, id: 'hover-1' }),
+      })
+    })
+
+    const sseBody = [
+      'event: chunk',
+      'data: {"text":"Hello hover"}',
+      '',
+      'event: done',
+      'data: {}',
+      '',
+    ].join('\n')
+    await harness.context.route(
+      /http:\/\/127\.0\.0\.1:8787\/v1\/summarize\/[^/]+\/events/,
+      async (route) => {
+        eventsCalls += 1
+        recordOrigin(route.request().headers()['origin'])
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+          body: sseBody,
+        })
+      }
+    )
+
+    const page = await harness.context.newPage()
+    trackErrors(page, harness.pageErrors, harness.consoleErrors)
+    await page.goto('https://example.com', { waitUntil: 'domcontentloaded' })
+
+    await page.evaluate(() => {
+      const link = document.createElement('a')
+      link.id = 'hover-target'
+      link.href = 'https://example.com/next'
+      link.textContent = 'Next'
+      document.body.append(link)
+
+      link.dispatchEvent(
+        new PointerEvent('pointerover', {
+          bubbles: true,
+          cancelable: true,
+          pointerType: 'mouse',
+        })
+      )
+    })
+
+    await expect.poll(() => summarizeCalls).toBeGreaterThan(0)
+    await expect.poll(() => eventsCalls).toBeGreaterThan(0)
+
+    const tooltip = page.locator('#__summarize_hover_tooltip__')
+    await expect(tooltip).toHaveAttribute('data-visible', 'true')
+    await expect(tooltip).toContainText('Hello hover')
+    expect(badOrigin).toBeNull()
     assertNoErrors(harness)
   } finally {
     await closeExtension(harness.context, harness.userDataDir)
