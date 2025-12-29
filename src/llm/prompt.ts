@@ -1,4 +1,5 @@
 import type { ImageContent, Message, TextContent, UserMessage } from '@mariozechner/pi-ai'
+import type { Attachment } from './attachments.js'
 
 export type DocumentAttachment = {
   bytes: Uint8Array
@@ -48,6 +49,40 @@ export function buildDocumentPrompt({
   document: DocumentAttachment
 }): DocumentPrompt {
   return { kind: 'document', text, document }
+}
+
+export function buildPromptPayload({
+  text,
+  attachments,
+}: {
+  text: string
+  attachments: Attachment[]
+}): PromptPayload {
+  if (attachments.length === 0) return text
+  if (attachments.length !== 1) {
+    throw new Error('Internal error: multiple attachments are not supported yet.')
+  }
+  const attachment = attachments[0]
+  if (attachment.kind === 'image') {
+    return [
+      userTextAndImageMessage({
+        text,
+        imageBytes: attachment.bytes,
+        mimeType: attachment.mediaType,
+      }),
+    ]
+  }
+  if (attachment.kind === 'document') {
+    return buildDocumentPrompt({
+      text,
+      document: {
+        bytes: attachment.bytes,
+        mediaType: attachment.mediaType,
+        filename: attachment.filename,
+      },
+    })
+  }
+  throw new Error(`Internal error: unsupported attachment kind \"${attachment.kind}\".`)
 }
 
 export function isDocumentPrompt(prompt: PromptPayload): prompt is DocumentPrompt {

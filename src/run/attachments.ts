@@ -2,8 +2,7 @@ import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import mime from 'mime'
-import { buildAssetPromptMessages, type loadLocalAsset } from '../content/asset.js'
-import type { PromptPayload } from '../llm/prompt.js'
+import type { loadLocalAsset } from '../content/asset.js'
 import { formatBytes } from '../tty/format.js'
 
 export type AssetAttachment = Awaited<ReturnType<typeof loadLocalAsset>>['attachment']
@@ -70,16 +69,6 @@ export function assertAssetMediaTypeSupported({
       `Archive formats (zip/tar/7z/rar) can’t be sent to the model.\n` +
       `Unzip and summarize a specific file instead (e.g. README.md).`
   )
-}
-
-export function buildAssetPromptPayload({
-  promptText,
-  attachment,
-}: {
-  promptText: string
-  attachment: AssetAttachment
-}): PromptPayload {
-  return buildAssetPromptMessages({ promptText, attachment })
 }
 
 export function getTextContentFromAttachment(

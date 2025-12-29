@@ -1,5 +1,5 @@
 import type { OutputLanguage } from '../../../language.js'
-import { buildDocumentPrompt, type PromptPayload } from '../../../llm/prompt.js'
+import type { Attachment } from '../../../llm/attachments.js'
 import { convertToMarkdownWithMarkitdown } from '../../../markitdown.js'
 import type { FixedModelSpec } from '../../../model-spec.js'
 import { buildFileSummaryPrompt, buildFileTextSummaryPrompt } from '../../../prompts/index.js'
@@ -8,7 +8,6 @@ import { formatBytes } from '../../../tty/format.js'
 import {
   type AssetAttachment,
   MAX_DOCUMENT_BYTES_DEFAULT,
-  buildAssetPromptPayload,
   getFileBytesFromAttachment,
   getTextContentFromAttachment,
   shouldMarkitdownConvertMediaType,
@@ -34,8 +33,8 @@ export type AssetPreprocessContext = {
 }
 
 export type AssetPreprocessResult = {
-  promptPayload: PromptPayload
   promptText: string
+  attachments: Attachment[]
   assetFooterParts: string[]
   textContent: { content: string; bytes: number } | null
 }
@@ -62,13 +61,12 @@ export async function prepareAssetPrompt({
       : { maxCharacters: ctx.lengthArg.maxCharacters }
 
   let promptText = ''
+  let attachments: Attachment[] = []
   const assetFooterParts: string[] = []
 
-  const buildImagePromptPayload = () => {
+  const buildImageAttachment = () => {
     if (attachment.kind !== 'image') {
-      throw new Error(
-        'Internal error: tried to build image prompt payload for non-image attachment'
-      )
+      throw new Error('Internal error: tried to attach non-image as image')
     }
     promptText = buildFileSummaryPrompt({
       filename: attachment.filename,
@@ -80,10 +78,17 @@ export async function prepareAssetPrompt({
       lengthInstruction: ctx.lengthInstruction ?? null,
       languageInstruction: ctx.languageInstruction ?? null,
     })
-    return buildAssetPromptPayload({ promptText, attachment })
+    attachments = [
+      {
+        kind: 'image',
+        mediaType: attachment.mediaType,
+        bytes: attachment.bytes,
+        filename: attachment.filename,
+      },
+    ]
   }
 
-  const buildInlinePromptPayload = ({
+  const buildInlinePromptText = ({
     content,
     contentMediaType,
     originalMediaType,
@@ -104,7 +109,6 @@ export async function prepareAssetPrompt({
       lengthInstruction: ctx.lengthInstruction ?? null,
       languageInstruction: ctx.languageInstruction ?? null,
     })
-    return promptText
   }
 
   let preprocessedMarkdown: string | null = null
@@ -141,15 +145,15 @@ export async function prepareAssetPrompt({
         lengthInstruction: ctx.lengthInstruction ?? null,
         languageInstruction: ctx.languageInstruction ?? null,
       })
-      const promptPayload = buildDocumentPrompt({
-        text: promptText,
-        document: {
-          bytes: fileBytes,
+      attachments = [
+        {
+          kind: 'document',
           mediaType: attachment.mediaType,
+          bytes: fileBytes,
           filename: attachment.filename,
         },
-      })
-      return { promptPayload, promptText, assetFooterParts, textContent }
+      ]
+      return { promptText, attachments, assetFooterParts, textContent }
     }
   }
 
@@ -199,28 +203,27 @@ export async function prepareAssetPrompt({
     assetFooterParts.push(`markitdown(${attachment.mediaType})`)
   }
 
-  let promptPayload: PromptPayload
   if (attachment.kind === 'image') {
-    promptPayload = buildImagePromptPayload()
+    buildImageAttachment()
   } else if (usingPreprocessedMarkdown) {
     if (!preprocessedMarkdown)
       throw new Error('Internal error: missing markitdown content for preprocessing')
-    promptPayload = buildInlinePromptPayload({
+    buildInlinePromptText({
       content: preprocessedMarkdown,
       contentMediaType: 'text/markdown',
       originalMediaType: attachment.mediaType,
     })
   } else if (textContent) {
-    promptPayload = buildInlinePromptPayload({
+    buildInlinePromptText({
       content: textContent.content,
       contentMediaType: attachment.mediaType,
       originalMediaType: attachment.mediaType,
     })
   } else {
-    throw new Error('Internal error: no prompt payload could be built for asset')
+    throw new Error('Internal error: no prompt text could be built for asset')
   }
 
   void ctx.fixedModelSpec
 
-  return { promptPayload, promptText, assetFooterParts, textContent }
+  return { promptText, attachments, assetFooterParts, textContent }
 }

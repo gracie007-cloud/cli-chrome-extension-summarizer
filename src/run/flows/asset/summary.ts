@@ -16,6 +16,7 @@ import type { LlmCall, RunMetricsReport } from '../../../costs.js'
 import type { OutputLanguage } from '../../../language.js'
 import { formatOutputLanguageForJson } from '../../../language.js'
 import { parseGatewayStyleModelId } from '../../../llm/model-id.js'
+import { buildPromptPayload } from '../../../llm/prompt.js'
 import type { ExecFileFn } from '../../../markitdown.js'
 import { buildAutoModelAttempts } from '../../../model-auto.js'
 import type { FixedModelSpec, RequestedModel } from '../../../model-spec.js'
@@ -122,7 +123,7 @@ export type SummarizeAssetArgs = {
 }
 
 export async function summarizeAsset(ctx: AssetSummaryContext, args: SummarizeAssetArgs) {
-  const { promptPayload, promptText, assetFooterParts, textContent } = await prepareAssetPrompt({
+  const { promptText, attachments, assetFooterParts, textContent } = await prepareAssetPrompt({
     ctx: {
       env: ctx.env,
       envForRun: ctx.envForRun,
@@ -139,13 +140,14 @@ export async function summarizeAsset(ctx: AssetSummaryContext, args: SummarizeAs
     },
     attachment: args.attachment,
   })
+  const promptPayload = buildPromptPayload({ text: promptText, attachments })
 
   const summaryLengthTarget =
     ctx.lengthArg.kind === 'preset'
       ? ctx.lengthArg.preset
       : { maxCharacters: ctx.lengthArg.maxCharacters }
 
-  const promptTokensForAuto = typeof promptPayload === 'string' ? countTokens(promptPayload) : null
+  const promptTokensForAuto = attachments.length === 0 ? countTokens(promptText) : null
   const lowerMediaType = args.attachment.mediaType.toLowerCase()
   const kind = lowerMediaType.startsWith('video/')
     ? ('video' as const)
@@ -235,7 +237,7 @@ export async function summarizeAsset(ctx: AssetSummaryContext, args: SummarizeAs
 
   const cliContext = await (async () => {
     if (!attempts.some((a) => a.transport === 'cli')) return null
-    if (typeof promptPayload === 'string') return null
+    if (attachments.length === 0) return null
     const needsPathPrompt = args.attachment.kind === 'image' || args.attachment.kind === 'file'
     if (!needsPathPrompt) return null
     const filePath = await ensureCliAttachmentPath({
