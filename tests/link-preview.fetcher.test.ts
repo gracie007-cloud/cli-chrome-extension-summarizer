@@ -19,6 +19,23 @@ describe('link preview fetcher', () => {
     ).rejects.toThrow('Failed to fetch HTML document (status 403)')
   })
 
+  it('returns the final URL when fetch follows redirects', async () => {
+    const response = htmlResponse('<html>ok</html>')
+    Object.defineProperty(response, 'url', {
+      value: 'https://summarize.sh/',
+      configurable: true,
+    })
+    const fetchMock = vi.fn(async () => response)
+
+    const result = await fetchHtmlDocument(
+      fetchMock as unknown as typeof fetch,
+      'https://t.co/abc'
+    )
+
+    expect(result.finalUrl).toBe('https://summarize.sh/')
+    expect(result.html).toContain('ok')
+  })
+
   it('throws a timeout error when HTML fetch is aborted', async () => {
     vi.useFakeTimers()
     try {

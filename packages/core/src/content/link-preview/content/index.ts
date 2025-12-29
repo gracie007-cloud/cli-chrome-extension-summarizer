@@ -314,7 +314,8 @@ export async function fetchLinkContent(
     for (const nitterUrl of nitterUrls) {
       deps.onProgress?.({ kind: 'nitter-start', url: nitterUrl })
       try {
-        const nitterHtml = await fetchHtmlDocument(deps.fetch, nitterUrl, { timeoutMs })
+        const nitterResult = await fetchHtmlDocument(deps.fetch, nitterUrl, { timeoutMs })
+        const nitterHtml = nitterResult.html
         if (!nitterHtml.trim()) {
           nitterError = new Error(`Nitter returned empty body from ${new URL(nitterUrl).host}`)
           deps.onProgress?.({ kind: 'nitter-done', url: nitterUrl, ok: false, textBytes: null })
@@ -371,11 +372,11 @@ export async function fetchLinkContent(
     }
   }
 
-  let html: string | null = null
+  let htmlResult: { html: string; finalUrl: string } | null = null
   let htmlError: unknown = null
 
   try {
-    html = await fetchHtmlDocument(deps.fetch, url, {
+    htmlResult = await fetchHtmlDocument(deps.fetch, url, {
       timeoutMs,
       onProgress: deps.onProgress ?? null,
     })
@@ -383,7 +384,7 @@ export async function fetchLinkContent(
     htmlError = error
   }
 
-  if (!html) {
+  if (!htmlResult) {
     if (!canUseFirecrawl) {
       throw htmlError instanceof Error ? htmlError : new Error('Failed to fetch HTML document')
     }
@@ -403,10 +404,12 @@ export async function fetchLinkContent(
     )
   }
 
+  const html = htmlResult.html
+  const effectiveUrl = htmlResult.finalUrl || url
   let readabilityCandidate: Awaited<ReturnType<typeof extractReadabilityFromHtml>> | null = null
 
   if (firecrawlMode === 'auto' && shouldFallbackToFirecrawl(html)) {
-    readabilityCandidate = await extractReadabilityFromHtml(html, url)
+    readabilityCandidate = await extractReadabilityFromHtml(html, effectiveUrl)
     const readabilityText = readabilityCandidate?.text
       ? normalizeForPrompt(readabilityCandidate.text)
       : ''
@@ -420,8 +423,8 @@ export async function fetchLinkContent(
     }
   }
 
-  const htmlResult = await buildResultFromHtmlDocument({
-    url,
+  const htmlExtracted = await buildResultFromHtmlDocument({
+    url: effectiveUrl,
     html,
     cacheMode,
     maxCharacters,
@@ -433,7 +436,7 @@ export async function fetchLinkContent(
     deps,
     readabilityCandidate,
   })
-  if (twitterStatus && isBlockedTwitterContent(htmlResult.content)) {
+  if (twitterStatus && isBlockedTwitterContent(htmlExtracted.content)) {
     const birdNote = !deps.readTweetWithBird
       ? 'Bird not available'
       : birdError
@@ -447,7 +450,7 @@ export async function fetchLinkContent(
         : 'Nitter not available'
     throw new Error(`Unable to fetch tweet content from X. ${birdNote}. ${nitterNote}.`)
   }
-  return htmlResult
+  return htmlExtracted
 }
 
 export type { ExtractedLinkContent, FetchLinkContentOptions } from './types.js'

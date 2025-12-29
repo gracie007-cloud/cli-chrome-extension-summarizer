@@ -41,14 +41,14 @@ describe('link preview fetcher - more branches', () => {
         },
       } as unknown as Response
     })
-    const html = await fetchHtmlDocument(
+    const htmlResult = await fetchHtmlDocument(
       fetchNoBody as unknown as typeof fetch,
       'https://example.com',
       {
         onProgress: (e) => events.push(e as { kind: string }),
       }
     )
-    expect(html).toBe('abc')
+    expect(htmlResult.html).toBe('abc')
     expect(events.some((e) => e.kind === 'fetch-html-done')).toBe(true)
 
     const reader = (() => {
@@ -74,7 +74,7 @@ describe('link preview fetcher - more branches', () => {
       fetchStream as unknown as typeof fetch,
       'https://example.com'
     )
-    expect(streamed).toContain('hi')
+    expect(streamed.html).toContain('hi')
 
     const abortingFetch = vi.fn(async () => {
       throw new DOMException('aborted', 'AbortError')

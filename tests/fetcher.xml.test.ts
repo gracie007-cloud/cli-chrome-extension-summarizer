@@ -16,6 +16,6 @@ describe('fetchHtmlDocument', () => {
       timeoutMs: 1000,
       onProgress: null,
     })
-    expect(out).toContain('<rss')
+    expect(out.html).toContain('<rss')
   })
 })

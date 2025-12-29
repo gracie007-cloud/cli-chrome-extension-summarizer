@@ -25,6 +25,11 @@ export interface FirecrawlFetchResult {
   diagnostics: FirecrawlDiagnostics
 }
 
+export interface HtmlDocumentFetchResult {
+  html: string
+  finalUrl: string
+}
+
 export async function fetchHtmlDocument(
   fetchImpl: typeof fetch,
   url: string,
@@ -32,7 +37,7 @@ export async function fetchHtmlDocument(
     timeoutMs,
     onProgress,
   }: { timeoutMs?: number; onProgress?: ((event: LinkPreviewProgressEvent) => void) | null } = {}
-): Promise<string> {
+): Promise<HtmlDocumentFetchResult> {
   onProgress?.({ kind: 'fetch-html-start', url })
 
   const controller = new AbortController()
@@ -54,6 +59,8 @@ export async function fetchHtmlDocument(
     if (!response.ok) {
       throw new Error(`Failed to fetch HTML document (status ${response.status})`)
     }
+
+    const finalUrl = response.url?.trim() || url
 
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? null
     if (
@@ -81,7 +88,7 @@ export async function fetchHtmlDocument(
       const text = await response.text()
       const bytes = new TextEncoder().encode(text).byteLength
       onProgress?.({ kind: 'fetch-html-done', url, downloadedBytes: bytes, totalBytes })
-      return text
+      return { html: text, finalUrl }
     }
 
     const reader = body.getReader()
@@ -102,7 +109,7 @@ export async function fetchHtmlDocument(
 
     text += decoder.decode()
     onProgress?.({ kind: 'fetch-html-done', url, downloadedBytes, totalBytes })
-    return text
+    return { html: text, finalUrl }
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new Error('Fetching HTML document timed out')
