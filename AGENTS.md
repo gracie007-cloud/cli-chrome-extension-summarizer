@@ -13,3 +13,5 @@
   - Build: `pnpm -s build` (builds core first)
   - Gate: `pnpm -s check`
   - Import from apps: prefer `@steipete/summarize-core` to avoid pulling CLI-only deps.
+- Daemon: restart with `pnpm -s summarize daemon restart`; verify via `pnpm -s summarize daemon status`.
+- Commits: use `committer "type: message" <files...>` (Conventional Commits).
