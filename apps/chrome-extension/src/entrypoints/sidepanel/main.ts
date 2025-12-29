@@ -76,6 +76,7 @@ const chatMessagesEl = byId<HTMLDivElement>('chatMessages')
 const chatInputEl = byId<HTMLTextAreaElement>('chatInput')
 const chatSendBtn = byId<HTMLButtonElement>('chatSend')
 const chatContextStatusEl = byId<HTMLDivElement>('chatContextStatus')
+const chatJumpBtn = byId<HTMLButtonElement>('chatJump')
 
 const md = new MarkdownIt({
   html: false,
@@ -117,6 +118,7 @@ const chatController = new ChatController({
   markdown: md,
   limits: chatLimits,
   scrollToBottom: () => scrollToBottom(),
+  onNewContent: () => markJumpIfNeeded(),
 })
 
 const isStreaming = () => panelState.phase === 'connecting' || panelState.phase === 'streaming'
@@ -144,6 +146,7 @@ headerController.updateHeaderOffset()
 window.addEventListener('resize', headerController.updateHeaderOffset)
 
 let autoScrollLocked = true
+let pendingJump = false
 
 const isNearBottom = () => {
   const distance = mainEl.scrollHeight - mainEl.scrollTop - mainEl.clientHeight
@@ -152,16 +155,36 @@ const isNearBottom = () => {
 
 const updateAutoScrollLock = () => {
   autoScrollLocked = isNearBottom()
+  if (autoScrollLocked && pendingJump) {
+    pendingJump = false
+    chatJumpBtn.classList.remove('isVisible')
+  }
 }
 
 const scrollToBottom = (force = false) => {
   if (force) autoScrollLocked = true
   if (!force && !autoScrollLocked) return
   mainEl.scrollTop = mainEl.scrollHeight
+  if (force && pendingJump) {
+    pendingJump = false
+    chatJumpBtn.classList.remove('isVisible')
+  }
+}
+
+const markJumpIfNeeded = () => {
+  if (autoScrollLocked) return
+  if (pendingJump) return
+  pendingJump = true
+  chatJumpBtn.classList.add('isVisible')
 }
 
 mainEl.addEventListener('scroll', updateAutoScrollLock, { passive: true })
 updateAutoScrollLock()
+
+chatJumpBtn.addEventListener('click', () => {
+  scrollToBottom(true)
+  chatInputEl.focus()
+})
 
 const updateChatDockHeight = () => {
   const height = chatDockEl.getBoundingClientRect().height
@@ -587,6 +610,10 @@ function syncHoverToggle() {
 function applyChatEnabled() {
   chatContainerEl.toggleAttribute('hidden', !chatEnabledValue)
   chatDockEl.toggleAttribute('hidden', !chatEnabledValue)
+  if (!chatEnabledValue) {
+    pendingJump = false
+    chatJumpBtn.classList.remove('isVisible')
+  }
   if (!chatEnabledValue) {
     clearMetricsForMode('chat')
     resetChatState()
@@ -1243,6 +1270,8 @@ function resetChatState() {
   }
   panelState.chatStreaming = false
   chatController.reset()
+  pendingJump = false
+  chatJumpBtn.classList.remove('isVisible')
 }
 
 function updateStreamingMessage(content: string) {

@@ -2,6 +2,7 @@ import { defineBackground } from 'wxt/utils/define-background'
 
 import { shouldPreferUrlMode } from '@steipete/summarize-core/content/url'
 import { parseSseEvent } from '../../../../src/shared/sse-events.js'
+import { buildChatPageContent } from '../lib/chat-context'
 import { buildDaemonRequestBody } from '../lib/daemon-payload'
 import { loadSettings, patchSettings } from '../lib/settings'
 import { parseSseStream } from '../lib/sse'
@@ -647,9 +648,11 @@ export default defineBackground(() => {
               const chatMessages = chatPayload.messages
               const summaryText =
                 typeof chatPayload.summary === 'string' ? chatPayload.summary.trim() : ''
-              const pageContent = summaryText
-                ? `Summary (auto-generated):\n${summaryText}\n\nFull transcript:\n${cachedExtract.text}`
-                : `Full transcript:\n${cachedExtract.text}`
+              const pageContent = buildChatPageContent({
+                transcript: cachedExtract.text,
+                summary: summaryText,
+                summaryCap: settings.maxChars,
+              })
 
               sendStatus('Sending to AI…')
 

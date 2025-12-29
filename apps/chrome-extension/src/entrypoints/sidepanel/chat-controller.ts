@@ -18,6 +18,7 @@ export type ChatControllerOptions = {
   markdown: MarkdownIt
   limits: ChatHistoryLimits
   scrollToBottom?: () => void
+  onNewContent?: () => void
 }
 
 export class ChatController {
@@ -29,6 +30,9 @@ export class ChatController {
   private readonly markdown: MarkdownIt
   private readonly limits: ChatHistoryLimits
   private readonly scrollToBottom?: () => void
+  private readonly onNewContent?: () => void
+  private readonly typingIndicatorHtml =
+    '<span class="chatTyping" aria-label="Typing"><span></span><span></span><span></span></span>'
 
   constructor(opts: ChatControllerOptions) {
     this.messagesEl = opts.messagesEl
@@ -38,6 +42,7 @@ export class ChatController {
     this.markdown = opts.markdown
     this.limits = opts.limits
     this.scrollToBottom = opts.scrollToBottom
+    this.onNewContent = opts.onNewContent
   }
 
   getMessages(): ChatMessage[] {
@@ -67,7 +72,10 @@ export class ChatController {
     for (const message of messages) {
       this.renderMessage(message, { scroll: false })
     }
-    if (opts?.scroll !== false) this.scrollToBottom?.()
+    if (opts?.scroll !== false) {
+      this.onNewContent?.()
+      this.scrollToBottom?.()
+    }
     this.updateVisibility()
     this.updateContextStatus()
   }
@@ -85,17 +93,19 @@ export class ChatController {
       lastMsg.content = content
       const msgEl = this.messagesEl.querySelector(`[data-id="${lastMsg.id}"]`)
       if (msgEl) {
-        msgEl.innerHTML = this.markdown.render(content || '...')
-        msgEl.classList.add('streaming')
         if (content.trim()) {
+          msgEl.innerHTML = this.markdown.render(content)
           msgEl.removeAttribute('data-placeholder')
         } else {
+          msgEl.innerHTML = this.typingIndicatorHtml
           msgEl.setAttribute('data-placeholder', 'true')
         }
+        msgEl.classList.add('streaming')
         for (const a of Array.from(msgEl.querySelectorAll('a'))) {
           a.setAttribute('target', '_blank')
           a.setAttribute('rel', 'noopener noreferrer')
         }
+        this.onNewContent?.()
         this.scrollToBottom?.()
       }
     }
@@ -120,8 +130,10 @@ export class ChatController {
     msgEl.dataset.id = message.id
 
     if (message.role === 'assistant') {
-      msgEl.innerHTML = this.markdown.render(message.content || '...')
-      if (!message.content.trim()) {
+      if (message.content.trim()) {
+        msgEl.innerHTML = this.markdown.render(message.content)
+      } else {
+        msgEl.innerHTML = this.typingIndicatorHtml
         msgEl.classList.add('streaming')
         msgEl.setAttribute('data-placeholder', 'true')
       }
@@ -139,7 +151,10 @@ export class ChatController {
       this.messagesEl.appendChild(msgEl)
     }
 
-    if (opts?.scroll !== false) this.scrollToBottom?.()
+    if (opts?.scroll !== false) {
+      this.onNewContent?.()
+      this.scrollToBottom?.()
+    }
   }
 
   private updateVisibility() {

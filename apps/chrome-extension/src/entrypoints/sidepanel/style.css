@@ -1105,6 +1105,18 @@ main {
   }
 }
 
+@keyframes chatDot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translateY(-3px);
+  }
+}
+
 .setup {
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
   background: var(--surface);
@@ -1359,13 +1371,31 @@ button.setup__pill.isActive {
 }
 
 .chatMessage.assistant.streaming[data-placeholder="true"]::after {
-  content: "…";
-  position: absolute;
-  right: 12px;
-  bottom: 8px;
-  font-size: 16px;
-  color: var(--muted);
-  animation: chatPulse 1.2s ease-in-out infinite;
+  content: "";
+}
+
+.chatTyping {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+}
+
+.chatTyping span {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 80%, transparent);
+  opacity: 0.4;
+  animation: chatDot 1.2s ease-in-out infinite;
+}
+
+.chatTyping span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chatTyping span:nth-child(3) {
+  animation-delay: 0.3s;
 }
 
 .chatMessage p {
@@ -1415,6 +1445,32 @@ button.setup__pill.isActive {
 
 .chatDock[hidden] {
   display: none;
+}
+
+.chatJump {
+  align-self: center;
+  margin-bottom: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+  background: color-mix(in srgb, var(--panel) 70%, transparent);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  display: none;
+}
+
+.chatJump.isVisible {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chatJump:hover {
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--border) 80%, transparent);
 }
 
 .chatInputRow {
