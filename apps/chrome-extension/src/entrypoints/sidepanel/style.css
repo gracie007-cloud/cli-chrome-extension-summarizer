@@ -674,7 +674,7 @@ button.ghost:hover {
   border-radius: 12px;
   background: var(--field-bg);
   overflow: hidden;
-  min-height: 32px;
+  min-height: 28px;
   width: 100%;
 }
 
@@ -717,7 +717,7 @@ button.ghost:hover {
   border-radius: 12px;
   background: var(--field-bg);
   overflow: hidden;
-  min-height: 32px;
+  min-height: 28px;
   width: 100%;
 }
 
