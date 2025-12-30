@@ -3,6 +3,7 @@ export type UiState = {
   daemon: { ok: boolean; authed: boolean; error?: string }
   tab: { id: number | null; url: string | null; title: string | null }
   media: { hasVideo: boolean; hasAudio: boolean; hasCaptions: boolean } | null
+  stats: { pageWords: number | null; videoDurationSeconds: number | null }
   settings: {
     autoSummarize: boolean
     hoverSummaries: boolean

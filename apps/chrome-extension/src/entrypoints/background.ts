@@ -62,6 +62,7 @@ type UiState = {
   daemon: { ok: boolean; authed: boolean; error?: string }
   tab: { id: number | null; url: string | null; title: string | null }
   media: { hasVideo: boolean; hasAudio: boolean; hasCaptions: boolean } | null
+  stats: { pageWords: number | null; videoDurationSeconds: number | null }
   settings: {
     autoSummarize: boolean
     hoverSummaries: boolean
@@ -488,6 +489,11 @@ export default defineBackground(() => {
       daemon: { ok: health.ok, authed: authed.ok, error: health.error ?? authed.error },
       tab: { id: tab?.id ?? null, url: tab?.url ?? null, title: tab?.title ?? null },
       media: cached?.media ?? null,
+      stats: {
+        pageWords: typeof cached?.wordCount === 'number' ? cached.wordCount : null,
+        videoDurationSeconds:
+          typeof cached?.mediaDurationSeconds === 'number' ? cached.mediaDurationSeconds : null,
+      },
       settings: {
         autoSummarize: settings.autoSummarize,
         hoverSummaries: settings.hoverSummaries,

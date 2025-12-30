@@ -34,6 +34,8 @@ type SummarizeControlProps = {
   value: 'page' | 'video'
   mediaAvailable: boolean
   videoLabel?: string
+  pageWords?: number | null
+  videoDurationSeconds?: number | null
   onValueChange: (value: 'page' | 'video') => void
   onSummarize: () => void
 }
@@ -53,6 +55,22 @@ const lengthLabels: Record<SummaryLength, string> = {
 }
 
 const formatCount = (value: number) => value.toLocaleString()
+
+const formatWordCount = (value: number | null | undefined) => {
+  if (!value || !Number.isFinite(value)) return null
+  return `${formatCount(value)} words`
+}
+
+const formatDuration = (seconds: number | null | undefined) => {
+  if (!seconds || !Number.isFinite(seconds)) return null
+  const total = Math.max(0, Math.floor(seconds))
+  const hours = Math.floor(total / 3600)
+  const minutes = Math.floor((total % 3600) / 60)
+  const secs = total % 60
+  const mm = minutes.toString().padStart(2, '0')
+  const ss = secs.toString().padStart(2, '0')
+  return hours > 0 ? `${hours}:${mm}:${ss}` : `${minutes}:${ss}`
+}
 
 const formatLengthTooltip = (preset: SummaryLength): string => {
   const spec = SUMMARY_LENGTH_SPECS[preset]
@@ -430,9 +448,15 @@ function SummarizeControl(props: SummarizeControlProps) {
     )
   }
 
+  const pageMeta = formatWordCount(props.pageWords)
+  const videoMeta = formatDuration(props.videoDurationSeconds)
+
+  const pageLabel = pageMeta ? `Page · ${pageMeta}` : 'Page'
+  const videoLabel = `${props.videoLabel ?? 'Video'}${videoMeta ? ` · ${videoMeta}` : ''}`
+
   const sourceItems: SelectItem[] = [
-    { value: 'page', label: 'Page' },
-    { value: 'video', label: props.videoLabel ?? 'Video' },
+    { value: 'page', label: pageLabel },
+    { value: 'video', label: videoLabel },
   ]
   const portalRoot = getOverlayRoot()
   const api = useZagSelect({

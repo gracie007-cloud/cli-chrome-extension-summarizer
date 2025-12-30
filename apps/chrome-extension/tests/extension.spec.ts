@@ -22,6 +22,7 @@ type UiState = {
   panelOpen: boolean
   daemon: { ok: boolean; authed: boolean; error?: string }
   tab: { url: string | null; title: string | null }
+  stats: { pageWords: number | null; videoDurationSeconds: number | null }
   settings: { autoSummarize: boolean; model: string; length: string; tokenPresent: boolean }
   status: string
 }
@@ -30,6 +31,7 @@ const defaultUiState: UiState = {
   panelOpen: true,
   daemon: { ok: true, authed: true },
   tab: { url: null, title: null },
+  stats: { pageWords: null, videoDurationSeconds: null },
   settings: { autoSummarize: true, model: 'auto', length: 'xl', tokenPresent: true },
   status: '',
 }

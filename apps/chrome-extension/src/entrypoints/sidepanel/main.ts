@@ -1442,6 +1442,8 @@ function updateControls(state: UiState) {
     value: inputMode,
     mediaAvailable,
     videoLabel: nextVideoLabel,
+    pageWords: state.stats.pageWords,
+    videoDurationSeconds: state.stats.videoDurationSeconds,
     onValueChange: (value) => {
       inputMode = value
     },
