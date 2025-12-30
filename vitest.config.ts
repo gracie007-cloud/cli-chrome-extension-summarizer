@@ -1,14 +1,21 @@
+import { cpus } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 const rootDir = dirname(fileURLToPath(import.meta.url))
+const cpuCount = Math.max(1, cpus().length)
+const envMaxThreads = Number.parseInt(process.env.VITEST_MAX_THREADS ?? '', 10)
+const maxThreads = Number.isFinite(envMaxThreads)
+  ? envMaxThreads
+  : Math.min(8, Math.max(4, Math.floor(cpuCount / 2)))
+const coverageReporters = process.env.CI ? ['text', 'json-summary', 'html'] : ['text', 'json-summary']
 
 export default defineConfig({
   poolOptions: {
     threads: {
       minThreads: 1,
-      maxThreads: 4,
+      maxThreads,
     },
   },
   resolve: {
@@ -43,7 +50,7 @@ export default defineConfig({
     testTimeout: 15_000,
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json-summary', 'html'],
+      reporter: coverageReporters,
       include: ['src/**/*.ts'],
       exclude: [
         '**/*.d.ts',

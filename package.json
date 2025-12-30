@@ -52,8 +52,9 @@
     "lint:fix": "biome check --write . && oxlint --type-aware --tsconfig tsconfig.build.json --config .oxlintrc.json --fix .",
     "check": "pnpm lint && pnpm test:coverage",
     "test:extension-e2e": "pnpm -C apps/chrome-extension test:e2e",
-    "test": "pnpm build && vitest run",
-    "test:coverage": "pnpm build && vitest run --coverage",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:coverage:build": "pnpm build && pnpm test:coverage",
     "release": "bash scripts/release.sh"
   },
   "pnpm": {

@@ -38,6 +38,9 @@ jobs:
       - name: Tests (coverage)
         run: pnpm test:coverage
 
+      - name: Build
+        run: pnpm build
+
       - name: Pack
         run: |
           set -euo pipefail

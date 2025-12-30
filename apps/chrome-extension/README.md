@@ -12,7 +12,7 @@ Docs + setup: `https://summarize.sh`
 
 ## Install in Chrome (Unpacked)
 
-Step-by-step (non-technical):
+Step-by-step:
 
 1) Build the extension:
    - `pnpm -C apps/chrome-extension build`
