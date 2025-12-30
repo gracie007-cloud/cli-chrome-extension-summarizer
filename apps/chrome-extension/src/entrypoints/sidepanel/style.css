@@ -764,7 +764,7 @@ button.ghost:hover {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex: 1;
+  width: 100%;
   min-width: 0;
   color: var(--text);
   font-size: 12px;
@@ -840,7 +840,7 @@ button.ghost:hover {
 .drawerFooter {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   margin-top: 10px;
 }
@@ -1274,7 +1274,7 @@ input[type="range"] {
 
 .drawerFooter {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   gap: 10px;
   margin-top: 10px;

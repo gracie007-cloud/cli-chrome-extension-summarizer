@@ -29,6 +29,7 @@
 - Chrome Side Panel: align size and line-height controls with length picker height.
 - Chrome Side Panel: refine line-height control icons.
 - Chrome Side Panel: equalize drawer control heights for length/size/line controls.
+- Chrome Side Panel: move auto summarize toggle into the Advanced drawer section.
 - Chrome Side Panel: Summarize button becomes a dropdown when media is detected (Page vs Video/Audio).
 - Hover summaries: prompt customization and tighter prompts for cleaner tooltips.
 - Daemon: expose version in health, plus a status pill in the Side Panel header.
