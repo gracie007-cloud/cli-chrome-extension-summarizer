@@ -95,6 +95,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function isOpenaiGpt5Model(parsed: ReturnType<typeof parseGatewayStyleModelId>): boolean {
+  return parsed.provider === 'openai' && /^gpt-5([-.].+)?$/i.test(parsed.model)
+}
+
+function resolveEffectiveTemperature({
+  parsed,
+  temperature,
+}: {
+  parsed: ReturnType<typeof parseGatewayStyleModelId>
+  temperature?: number
+}): number | undefined {
+  if (typeof temperature !== 'number') return undefined
+  if (isOpenaiGpt5Model(parsed)) return undefined
+  return temperature
+}
+
 export async function generateTextWithModelId({
   modelId,
   apiKeys,
@@ -134,11 +150,7 @@ export async function generateTextWithModelId({
   usage: LlmTokenUsage | null
 }> {
   const parsed = parseGatewayStyleModelId(modelId)
-  const isOpenaiGpt5 = parsed.provider === 'openai' && /^gpt-5([-.].+)?$/i.test(parsed.model)
-  const effectiveTemperature =
-    typeof temperature === 'number' && !(isOpenaiGpt5 && temperature === 0)
-      ? temperature
-      : undefined
+  const effectiveTemperature = resolveEffectiveTemperature({ parsed, temperature })
 
   const attachments = prompt.attachments ?? []
   const documentAttachment =
@@ -481,6 +493,7 @@ export async function streamTextWithContext({
   lastError: () => unknown
 }> {
   const parsed = parseGatewayStyleModelId(modelId)
+  const effectiveTemperature = resolveEffectiveTemperature({ parsed, temperature })
   void fetchImpl
 
   const controller = new AbortController()
@@ -562,7 +575,7 @@ export async function streamTextWithContext({
         xaiBaseUrlOverride,
       })
       const stream = streamSimple(model, context, {
-        ...(typeof temperature === 'number' ? { temperature } : {}),
+        ...(typeof effectiveTemperature === 'number' ? { temperature: effectiveTemperature } : {}),
         ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
         apiKey,
         signal: controller.signal,
@@ -603,7 +616,7 @@ export async function streamTextWithContext({
         googleBaseUrlOverride,
       })
       const stream = streamSimple(model, context, {
-        ...(typeof temperature === 'number' ? { temperature } : {}),
+        ...(typeof effectiveTemperature === 'number' ? { temperature: effectiveTemperature } : {}),
         ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
         apiKey,
         signal: controller.signal,
@@ -641,7 +654,7 @@ export async function streamTextWithContext({
         anthropicBaseUrlOverride,
       })
       const stream = streamSimple(model, context, {
-        ...(typeof temperature === 'number' ? { temperature } : {}),
+        ...(typeof effectiveTemperature === 'number' ? { temperature: effectiveTemperature } : {}),
         ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
         apiKey,
         signal: controller.signal,
@@ -680,7 +693,7 @@ export async function streamTextWithContext({
         openaiBaseUrlOverride,
       })
       const stream = streamSimple(model, context, {
-        ...(typeof temperature === 'number' ? { temperature } : {}),
+        ...(typeof effectiveTemperature === 'number' ? { temperature: effectiveTemperature } : {}),
         ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
         apiKey,
         signal: controller.signal,
@@ -719,7 +732,7 @@ export async function streamTextWithContext({
     })
     const model = resolveOpenAiModel({ modelId: parsed.model, context, openaiConfig })
     const stream = streamSimple(model, context, {
-      ...(typeof temperature === 'number' ? { temperature } : {}),
+      ...(typeof effectiveTemperature === 'number' ? { temperature: effectiveTemperature } : {}),
       ...(typeof maxOutputTokens === 'number' ? { maxTokens: maxOutputTokens } : {}),
       apiKey: openaiConfig.apiKey,
       signal: controller.signal,

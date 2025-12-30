@@ -150,6 +150,100 @@ describe('llm generate/stream', () => {
     expect(streamArgs).not.toHaveProperty('maxTokens')
   })
 
+  it('skips temperature for OpenAI GPT-5 models (generate/stream)', async () => {
+    mocks.completeSimple.mockClear()
+    mocks.streamSimple.mockClear()
+
+    await generateTextWithModelId({
+      modelId: 'openai/gpt-5-mini',
+      apiKeys: {
+        openaiApiKey: 'k',
+        xaiApiKey: null,
+        googleApiKey: null,
+        anthropicApiKey: null,
+        openrouterApiKey: null,
+      },
+      prompt: { userText: 'hi' },
+      temperature: 0.7,
+      timeoutMs: 2000,
+      fetchImpl: globalThis.fetch.bind(globalThis),
+    })
+
+    await streamTextWithModelId({
+      modelId: 'openai/gpt-5-mini',
+      apiKeys: {
+        openaiApiKey: 'k',
+        xaiApiKey: null,
+        googleApiKey: null,
+        anthropicApiKey: null,
+        openrouterApiKey: null,
+      },
+      prompt: { userText: 'hi' },
+      temperature: 0.7,
+      timeoutMs: 2000,
+      fetchImpl: globalThis.fetch.bind(globalThis),
+    })
+
+    const generateArgs = (mocks.completeSimple.mock.calls[0]?.[2] ?? {}) as Record<
+      string,
+      unknown
+    >
+    const streamArgs = (mocks.streamSimple.mock.calls[0]?.[2] ?? {}) as Record<
+      string,
+      unknown
+    >
+
+    expect(generateArgs).not.toHaveProperty('temperature')
+    expect(streamArgs).not.toHaveProperty('temperature')
+  })
+
+  it('forwards temperature for non-GPT-5 OpenAI models', async () => {
+    mocks.completeSimple.mockClear()
+    mocks.streamSimple.mockClear()
+
+    await generateTextWithModelId({
+      modelId: 'openai/gpt-4.1',
+      apiKeys: {
+        openaiApiKey: 'k',
+        xaiApiKey: null,
+        googleApiKey: null,
+        anthropicApiKey: null,
+        openrouterApiKey: null,
+      },
+      prompt: { userText: 'hi' },
+      temperature: 0.2,
+      timeoutMs: 2000,
+      fetchImpl: globalThis.fetch.bind(globalThis),
+    })
+
+    await streamTextWithModelId({
+      modelId: 'openai/gpt-4.1',
+      apiKeys: {
+        openaiApiKey: 'k',
+        xaiApiKey: null,
+        googleApiKey: null,
+        anthropicApiKey: null,
+        openrouterApiKey: null,
+      },
+      prompt: { userText: 'hi' },
+      temperature: 0.2,
+      timeoutMs: 2000,
+      fetchImpl: globalThis.fetch.bind(globalThis),
+    })
+
+    const generateArgs = (mocks.completeSimple.mock.calls[0]?.[2] ?? {}) as Record<
+      string,
+      unknown
+    >
+    const streamArgs = (mocks.streamSimple.mock.calls[0]?.[2] ?? {}) as Record<
+      string,
+      unknown
+    >
+
+    expect(generateArgs).toMatchObject({ temperature: 0.2 })
+    expect(streamArgs).toMatchObject({ temperature: 0.2 })
+  })
+
   it('uses Anthropic document calls for PDF prompts', async () => {
     mocks.completeSimple.mockClear()
 
