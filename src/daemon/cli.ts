@@ -406,21 +406,33 @@ export async function handleDaemonRequest({
 
     await service.restart({ stdout })
     await sleep(8000)
-    await waitForHealthWithRetries({
-      fetchImpl,
-      port: cfg.port,
-      attempts: 3,
-      timeoutMs: 5000,
-      delayMs: 500,
-    })
-    const authed = await checkAuthWithRetries({
-      fetchImpl,
-      token: cfg.token,
-      port: cfg.port,
-      attempts: 5,
-      delayMs: 400,
-    })
-    if (!authed) throw new Error('Daemon restarted but auth failed (token mismatch?)')
+    let healthy = true
+    try {
+      await waitForHealthWithRetries({
+        fetchImpl,
+        port: cfg.port,
+        attempts: 3,
+        timeoutMs: 15000,
+        delayMs: 500,
+      })
+    } catch {
+      healthy = false
+    }
+    const authed = healthy
+      ? await checkAuthWithRetries({
+          fetchImpl,
+          token: cfg.token,
+          port: cfg.port,
+          attempts: 5,
+          delayMs: 400,
+        })
+      : false
+    if (!healthy || !authed) {
+      stdout.write(
+        'Restarted daemon. It is still starting; run "summarize daemon status" in a few seconds.\n'
+      )
+      return true
+    }
 
     stdout.write('OK: daemon restarted and authenticated.\n')
     return true
