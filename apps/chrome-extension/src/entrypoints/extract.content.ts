@@ -1,5 +1,6 @@
 import { Readability } from '@mozilla/readability'
 import { defineContentScript } from 'wxt/utils/define-content-script'
+import { resolveMediaDurationSecondsFromData } from '../lib/media-duration'
 
 type ExtractRequest = { type: 'extract'; maxChars: number }
 type ExtractResponse =
@@ -19,58 +20,17 @@ function clampText(text: string, maxChars: number): { text: string; truncated: b
   return { text: `${sliced}\n\n[TRUNCATED]`, truncated: true }
 }
 
-function parseClockDuration(value: string): number | null {
-  const parts = value
-    .trim()
-    .split(':')
-    .map((part) => Number.parseInt(part.trim(), 10))
-  if (parts.some((part) => !Number.isFinite(part))) return null
-  if (parts.length === 2) {
-    const [minutes, seconds] = parts
-    return minutes * 60 + seconds
-  }
-  if (parts.length === 3) {
-    const [hours, minutes, seconds] = parts
-    return hours * 3600 + minutes * 60 + seconds
-  }
-  return null
-}
-
-function parseIsoDuration(value: string): number | null {
-  const match = value.trim().match(/^PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$/i)
-  if (!match) return null
-  const hours = Number.parseInt(match[1] ?? '0', 10)
-  const minutes = Number.parseInt(match[2] ?? '0', 10)
-  const seconds = Number.parseInt(match[3] ?? '0', 10)
-  if (![hours, minutes, seconds].every((part) => Number.isFinite(part))) return null
-  const total = hours * 3600 + minutes * 60 + seconds
-  return total > 0 ? total : null
-}
-
 function resolveMediaDurationSeconds(): number | null {
   const metaDuration = document
     .querySelector('meta[itemprop="duration"]')
     ?.getAttribute('content')
-  if (metaDuration) {
-    const parsed = parseIsoDuration(metaDuration)
-    if (parsed) return parsed
-  }
-
   const uiDuration = document.querySelector('.ytp-time-duration')?.textContent?.trim()
-  if (uiDuration) {
-    const parsed = parseClockDuration(uiDuration)
-    if (parsed) return parsed
-  }
-
   const media = document.querySelector('video')
-  if (media && typeof (media as HTMLVideoElement).duration === 'number') {
-    const duration = (media as HTMLVideoElement).duration
-    if (Number.isFinite(duration) && duration > 0) {
-      return Math.round(duration)
-    }
-  }
-
-  return null
+  const videoDuration =
+    media && typeof (media as HTMLVideoElement).duration === 'number'
+      ? (media as HTMLVideoElement).duration
+      : null
+  return resolveMediaDurationSecondsFromData({ metaDuration, uiDuration, videoDuration })
 }
 
 function extract(maxChars: number): ExtractResponse {
