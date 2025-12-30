@@ -11,4 +11,5 @@ coverage
 .wxt
 _pack
 *.tgz
+*.zip
 apps/chrome-extension/test-results
