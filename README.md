@@ -51,13 +51,17 @@ Apple Silicon only (arm64).
 summarize "https://example.com"
 ```
 
-## Chrome Side Panel
+## Chrome Extension (Side Panel)
 
 Want a one-click “always-on” summarizer in Chrome (real Side Panel, not injected UI)?
 
 This is a **Chrome extension** + a tiny local **daemon** (autostart service) that streams Markdown summaries for the **currently visible tab** into the Side Panel.
 
 Docs + setup: `https://summarize.sh`
+
+Extension docs:
+- Architecture + troubleshooting: `docs/chrome-extension.md`
+- Extension-specific README (build/load/unpacked): `apps/chrome-extension/README.md`
 
 Quickstart (local daemon):
 
