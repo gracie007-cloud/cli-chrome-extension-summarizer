@@ -9,7 +9,9 @@ const envMaxThreads = Number.parseInt(process.env.VITEST_MAX_THREADS ?? '', 10)
 const maxThreads = Number.isFinite(envMaxThreads)
   ? envMaxThreads
   : Math.min(8, Math.max(4, Math.floor(cpuCount / 2)))
-const coverageReporters = process.env.CI ? ['text', 'json-summary', 'html'] : ['text', 'json-summary']
+const coverageReporters = process.env.CI
+  ? ['text', 'json-summary', 'html']
+  : ['text', 'json-summary']
 
 export default defineConfig({
   poolOptions: {
