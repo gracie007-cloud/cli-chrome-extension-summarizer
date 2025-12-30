@@ -50,7 +50,8 @@
     "format": "biome format --write .",
     "lint": "biome check . && oxlint --type-aware --tsconfig tsconfig.build.json --config .oxlintrc.json .",
     "lint:fix": "biome check --write . && oxlint --type-aware --tsconfig tsconfig.build.json --config .oxlintrc.json --fix .",
-    "check": "pnpm lint && pnpm test:coverage && pnpm -C apps/chrome-extension test:e2e",
+    "check": "pnpm lint && pnpm test:coverage",
+    "test:extension-e2e": "pnpm -C apps/chrome-extension test:e2e",
     "test": "pnpm build && vitest run",
     "test:coverage": "pnpm build && vitest run --coverage",
     "release": "bash scripts/release.sh"
