@@ -52,10 +52,10 @@ describe('buildUrlPrompt with transcript timestamps', () => {
       languageInstruction: null,
     })
 
-    expect(prompt).toContain('Use a bullet list of key points')
+    expect(prompt).toContain('Key moments')
     expect(prompt).toContain('Start each bullet with a [mm:ss]')
-    expect(prompt).toContain('timestamp must appear in the same sentence')
-    expect(prompt).not.toContain('Use 1-2 short paragraphs')
+    expect(prompt).toContain('do not prepend timestamps outside the Key moments section')
+    expect(prompt).toContain('Use 1-2 short paragraphs')
   })
 
   it('keeps default formatting when timestamps are unavailable', () => {
@@ -68,7 +68,7 @@ describe('buildUrlPrompt with transcript timestamps', () => {
       languageInstruction: null,
     })
 
-    expect(prompt).not.toContain('Use a bullet list of key points')
+    expect(prompt).not.toContain('Key moments')
     expect(prompt).toContain('Use 1-2 short paragraphs')
   })
 })

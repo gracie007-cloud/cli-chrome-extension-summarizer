@@ -107,9 +107,7 @@ export function buildLinkSummaryPrompt({
       ? effectiveSummaryLength
       : pickSummaryLengthForCharacters(effectiveSummaryLength.maxCharacters)
   const directive = resolveSummaryLengthSpec(preset)
-  const formattingLine = hasTranscriptTimestamps
-    ? 'Use a bullet list of key points. Start each bullet with a [mm:ss] (or [hh:mm:ss]) timestamp from the transcript.'
-    : directive.formatting
+  const formattingLine = directive.formatting
   const presetLengthLine =
     typeof effectiveSummaryLength === 'string' ? formatPresetLengthGuidance(preset) : ''
   const needsHeadings =
@@ -153,11 +151,10 @@ export function buildLinkSummaryPrompt({
 
   const shareBlock = shares.length > 0 ? `Tweets from sharers:\n${shareLines.join('\n')}` : ''
   const timestampInstruction = hasTranscriptTimestamps
-    ? 'If you mention a specific moment, the timestamp must appear in the same sentence. Do not invent timestamps or use ranges.'
+    ? 'Add a "Key moments" section with 3-6 bullets (2-4 if the summary is short). Start each bullet with a [mm:ss] (or [hh:mm:ss]) timestamp from the transcript. Keep the rest of the summary readable and follow the normal formatting guidance; do not prepend timestamps outside the Key moments section. Do not invent timestamps or use ranges.'
     : ''
-  const listGuidanceLine = hasTranscriptTimestamps
-    ? 'Use the bullet list format above and keep each bullet concise.'
-    : 'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.'
+  const listGuidanceLine =
+    'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.'
 
   const baseInstructions = [
     audienceLine,
