@@ -43,8 +43,8 @@ describe('cli asset inputs (audio files)', () => {
     mocks.streamSimple.mockClear()
 
     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-no-provider-'))
-    const mp3Path = join(root, 'test-audio.mp3')
-    writeFileSync(mp3Path, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+     const mp3Path = join(root, 'test-audio.mp3')
+     writeFileSync(mp3Path, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
     const stdout = collectStream()
     const stderr = collectStream()
@@ -70,9 +70,9 @@ describe('cli asset inputs (audio files)', () => {
   it('rejects audio files with helpful error when provider setup is incomplete', async () => {
     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-provider-error-'))
-    const mp3Path = join(root, 'test-audio.mp3')
-    writeFileSync(mp3Path, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-provider-error-'))
+     const mp3Path = join(root, 'test-audio.mp3')
+     writeFileSync(mp3Path, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
     const stdout = collectStream()
     const stderr = collectStream()
@@ -143,9 +143,9 @@ describe('cli asset inputs (audio files)', () => {
     const audioExtensions = ['mp3', 'wav', 'm4a', 'ogg', 'flac']
 
     for (const ext of audioExtensions) {
-      const root = mkdtempSync(join(tmpdir(), `summarize-audio-${ext}-ext-`))
-      const audioPath = join(root, `test.${ext}`)
-      writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+       const root = mkdtempSync(join(tmpdir(), `summarize-audio-${ext}-ext-`))
+       const audioPath = join(root, `test.${ext}`)
+       writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
       const stdout = collectStream()
       const stderr = collectStream()
@@ -172,9 +172,9 @@ describe('cli asset inputs (audio files)', () => {
     // by checking that the media handler is invoked (which would fail at provider check)
     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-file-url-conversion-'))
-    const audioPath = join(root, 'relative-path-test.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-file-url-conversion-'))
+     const audioPath = join(root, 'relative-path-test.mp3')
+     writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
     const stdout = collectStream()
     const stderr = collectStream()
@@ -200,9 +200,9 @@ describe('cli asset inputs (audio files)', () => {
     // by checking that files with the same mtime would use cached transcripts
     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-cache-mtime-'))
-    const audioPath = join(root, 'audio-with-mtime.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-cache-mtime-'))
+     const audioPath = join(root, 'audio-with-mtime.mp3')
+     writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
     const stdout = collectStream()
     const stderr = collectStream()

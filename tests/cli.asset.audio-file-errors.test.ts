@@ -141,15 +141,14 @@ describe('Audio file error handling', () => {
     expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
   })
 
-  it('handles symbolic links to audio files', async () => {
-    mocks.streamSimple.mockClear()
+   it('handles audio files with various path scenarios', async () => {
+     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-symlink-'))
-    const audioPath = join(root, 'audio.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-symlink-'))
+     const audioPath = join(root, 'audio.mp3')
+     writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
-    // Skip symlink test on systems that don't support it
-    // This test mainly ensures we handle symlinks gracefully
+     // This test verifies basic file path handling
     const stdout = collectStream()
     const stderr = collectStream()
 
@@ -221,73 +220,37 @@ describe('Audio file error handling', () => {
     expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
   })
 
-  it('properly formats error messages for unsupported audio codecs', async () => {
-    mocks.streamSimple.mockClear()
+   it('properly formats error messages for unsupported audio codecs', async () => {
+     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-unsupported-'))
-    const audioPath = join(root, 'unsupported.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-unsupported-'))
+     const audioPath = join(root, 'unsupported.mp3')
+     writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
-    const stdout = collectStream()
-    const stderr = collectStream()
+     const stdout = collectStream()
+     const stderr = collectStream()
 
-    const run = () =>
-      runCli(['--model', 'openai/gpt-4o-mini', '--timeout', '2s', audioPath], {
-        env: { HOME: root }, // No transcription provider
-        fetch: vi.fn(async () => {
-          throw new Error('unexpected fetch')
-        }) as unknown as typeof fetch,
-        stdout: stdout.stream,
-        stderr: stderr.stream,
-      })
+     const run = () =>
+       runCli(['--model', 'openai/gpt-4o-mini', '--timeout', '2s', audioPath], {
+         env: { HOME: root }, // No transcription provider
+         fetch: vi.fn(async () => {
+           throw new Error('unexpected fetch')
+         }) as unknown as typeof fetch,
+         stdout: stdout.stream,
+         stderr: stderr.stream,
+       })
 
-    // Should fail at provider check before codec detection
-    await expect(run()).rejects.toThrow(/transcription requires/)
-    expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
-  })
+     // Should fail at provider check before codec detection
+     await expect(run()).rejects.toThrow(/transcription requires/)
+     expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
+   })
 
-  it('handles concurrent file access gracefully', async () => {
-    mocks.streamSimple.mockClear()
+   it('handles concurrent file access gracefully', async () => {
+     mocks.streamSimple.mockClear()
 
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-concurrent-'))
-    const audioPath = join(root, 'test.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
-
-    const stdout = collectStream()
-    const stderr = collectStream()
-
-    const run = () =>
-      runCli(['--model', 'openai/gpt-4o-mini', '--timeout', '2s', audioPath], {
-        env: { HOME: root }, // No transcription provider
-        fetch: vi.fn(async () => {
-          throw new Error('unexpected fetch')
-        }) as unknown as typeof fetch,
-        stdout: stdout.stream,
-        stderr: stderr.stream,
-      })
-
-    // Both calls should fail with same error
-    try {
-      await run()
-    } catch (err1) {
-      try {
-        await run()
-      } catch (err2) {
-        // Both should fail consistently
-        expect(String(err1)).toMatch(/transcription requires/)
-        expect(String(err2)).toMatch(/transcription requires/)
-      }
-    }
-
-    expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
-  })
-
-  it('handles concurrent file access gracefully', async () => {
-    mocks.streamSimple.mockClear()
-
-    const root = mkdtempSync(join(tmpdir(), 'summarize-audio-concurrent-'))
-    const audioPath = join(root, 'test.mp3')
-    writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]), 'utf8')
+     const root = mkdtempSync(join(tmpdir(), 'summarize-audio-concurrent-'))
+     const audioPath = join(root, 'test.mp3')
+     writeFileSync(audioPath, Buffer.from([0xff, 0xfb, 0x10, 0x00]))
 
     const stdout = collectStream()
     const stderr = collectStream()
@@ -315,6 +278,6 @@ describe('Audio file error handling', () => {
       }
     }
 
-    expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
-  })
+     expect(mocks.streamSimple).toHaveBeenCalledTimes(0)
+   })
 })
