@@ -267,6 +267,9 @@ export class ChatController {
 }
 
 function extractText(message: ChatMessage): string {
+  if (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'toolResult') {
+    return ''
+  }
   const { content } = message
   if (typeof content === 'string') return content
   if (!Array.isArray(content)) return ''
