@@ -27,6 +27,14 @@ export const ProgressKind = {
   BirdDone: 'bird-done',
 } as const
 
+export type TranscriptionProviderHint =
+  | 'cpp'
+  | 'onnx'
+  | 'openai'
+  | 'fal'
+  | 'openai->fal'
+  | 'unknown'
+
 /** Public progress events emitted by link preview fetchers. */
 export type LinkPreviewProgressEvent =
   | { kind: 'fetch-html-start'; url: string }
@@ -67,7 +75,7 @@ export type LinkPreviewProgressEvent =
       kind: 'transcript-whisper-start'
       url: string
       service: 'youtube' | 'podcast' | 'generic'
-      providerHint: 'cpp' | 'onnx' | 'openai' | 'fal' | 'openai->fal' | 'unknown'
+      providerHint: TranscriptionProviderHint
       modelId: string | null
       totalDurationSeconds: number | null
       parts: number | null

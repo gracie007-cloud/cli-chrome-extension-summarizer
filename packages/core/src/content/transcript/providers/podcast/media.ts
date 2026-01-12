@@ -3,19 +3,14 @@ import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  isOnnxCliConfigured,
-  resolvePreferredOnnxModel,
-} from '../../../../transcription/onnx-cli.js'
-import {
   isFfmpegAvailable,
-  isWhisperCppReady,
   MAX_OPENAI_UPLOAD_BYTES,
   probeMediaDurationSecondsWithFfprobe,
-  resolveWhisperCppModelNameForDisplay,
   transcribeMediaFileWithWhisper,
   transcribeMediaWithWhisper,
 } from '../../../../transcription/whisper.js'
 import type { ProviderFetchOptions } from '../../types.js'
+import { resolveTranscriptionStartInfo } from '../transcription-start.js'
 import { MAX_REMOTE_MEDIA_BYTES, TRANSCRIPTION_TIMEOUT_MS } from './constants.js'
 
 export type TranscribeRequest = {
@@ -57,21 +52,13 @@ export async function transcribeMediaUrl({
 }): Promise<TranscriptionResult> {
   const canChunk = await isFfmpegAvailable()
   const effectiveEnv = env ?? process.env
-  const preferredOnnxModel = resolvePreferredOnnxModel(effectiveEnv)
-  const onnxReady = preferredOnnxModel
-    ? isOnnxCliConfigured(preferredOnnxModel, effectiveEnv)
-    : false
-  const providerHint: 'cpp' | 'onnx' | 'openai' | 'fal' | 'openai->fal' | 'unknown' = onnxReady
-    ? 'onnx'
-    : (await isWhisperCppReady())
-      ? 'cpp'
-      : openaiApiKey && falApiKey
-        ? 'openai->fal'
-        : openaiApiKey
-          ? 'openai'
-          : falApiKey
-            ? 'fal'
-            : 'unknown'
+  const startInfo = await resolveTranscriptionStartInfo({
+    env: effectiveEnv,
+    openaiApiKey,
+    falApiKey,
+  })
+  const providerHint = startInfo.providerHint
+  const modelId = startInfo.modelId
 
   const head = await probeRemoteMedia(fetchImpl, url)
   if (head.contentLength !== null && head.contentLength > MAX_REMOTE_MEDIA_BYTES) {
@@ -91,17 +78,6 @@ export async function transcribeMediaUrl({
     mediaUrl: url,
     totalBytes,
   })
-
-  const modelId =
-    providerHint === 'cpp'
-      ? ((await resolveWhisperCppModelNameForDisplay()) ?? 'whisper.cpp')
-      : openaiApiKey && falApiKey
-        ? 'whisper-1->fal-ai/wizper'
-        : openaiApiKey
-          ? 'whisper-1'
-          : falApiKey
-            ? 'fal-ai/wizper'
-            : null
   if (!canChunk) {
     const bytes = await downloadCappedBytes(fetchImpl, url, MAX_OPENAI_UPLOAD_BYTES, {
       totalBytes,

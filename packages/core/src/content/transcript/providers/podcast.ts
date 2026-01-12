@@ -1,4 +1,3 @@
-import { isWhisperCppReady } from '../../../transcription/whisper.js'
 import type { ProviderContext, ProviderFetchOptions, ProviderResult } from '../types.js'
 import {
   fetchAppleTranscriptFromEmbeddedHtml,
@@ -30,6 +29,7 @@ import {
 } from './podcast/rss.js'
 import { looksLikeBlockedHtml } from './podcast/spotify.js'
 import { fetchSpotifyTranscript } from './podcast/spotify-flow.js'
+import { resolveTranscriptionAvailability } from './transcription-start.js'
 
 export const canHandle = ({ url, html }: ProviderContext): boolean => {
   if (typeof html === 'string' && looksLikeRssOrAtomFeed(html)) return true
@@ -48,8 +48,11 @@ export const fetchTranscript = async (
     if (!attemptedProviders.includes(provider)) attemptedProviders.push(provider)
   }
 
-  const hasTranscriptionKeys = Boolean(options.openaiApiKey || options.falApiKey)
-  const hasLocalWhisper = await isWhisperCppReady()
+  const transcriptionAvailability = await resolveTranscriptionAvailability({
+    env: options.env,
+    openaiApiKey: options.openaiApiKey,
+    falApiKey: options.falApiKey,
+  })
 
   const missingTranscriptionProviderResult = (): ProviderResult => ({
     text: null,
@@ -60,7 +63,7 @@ export const fetchTranscript = async (
   })
 
   const ensureTranscriptionProvider = (): ProviderResult | null => {
-    return !hasTranscriptionKeys && !hasLocalWhisper ? missingTranscriptionProviderResult() : null
+    return !transcriptionAvailability.hasAnyProvider ? missingTranscriptionProviderResult() : null
   }
 
   const progress = {

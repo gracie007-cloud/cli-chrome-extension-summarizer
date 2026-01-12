@@ -4,17 +4,13 @@ import { promises as fs } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
-  isOnnxCliConfigured,
-  resolvePreferredOnnxModel,
-} from '../../../../transcription/onnx-cli.js'
-import {
-  isWhisperCppReady,
   probeMediaDurationSecondsWithFfprobe,
   type TranscriptionProvider,
   transcribeMediaFileWithWhisper,
 } from '../../../../transcription/whisper.js'
 import type { LinkPreviewProgressEvent } from '../../../link-preview/deps.js'
 import { ProgressKind } from '../../../link-preview/deps.js'
+import { resolveTranscriptionStartInfo } from '../transcription-start.js'
 
 const YT_DLP_TIMEOUT_MS = 300_000
 const MAX_STDERR_BYTES = 8192
@@ -62,8 +58,14 @@ export const fetchTranscriptWithYtDlp = async ({
       notes,
     }
   }
-  const hasLocalWhisper = await isWhisperCppReady()
-  if (!openaiApiKey && !falApiKey && !hasLocalWhisper) {
+  const effectiveEnv = env ?? process.env
+  const startInfo = await resolveTranscriptionStartInfo({
+    env: effectiveEnv,
+    openaiApiKey,
+    falApiKey,
+  })
+
+  if (!startInfo.availability.hasAnyProvider) {
     return {
       text: null,
       provider: null,
@@ -75,31 +77,8 @@ export const fetchTranscriptWithYtDlp = async ({
   }
 
   const progress = typeof onProgress === 'function' ? onProgress : null
-  const effectiveEnv = env ?? process.env
-  const preferredOnnxModel = resolvePreferredOnnxModel(effectiveEnv)
-  const onnxReady = preferredOnnxModel
-    ? isOnnxCliConfigured(preferredOnnxModel, effectiveEnv)
-    : false
-  const providerHint: 'cpp' | 'onnx' | 'openai' | 'fal' | 'openai->fal' | 'unknown' = onnxReady
-    ? 'onnx'
-    : hasLocalWhisper
-      ? 'cpp'
-      : openaiApiKey && falApiKey
-        ? 'openai->fal'
-        : openaiApiKey
-          ? 'openai'
-          : falApiKey
-            ? 'fal'
-            : 'unknown'
-  const modelId = hasLocalWhisper
-    ? 'whisper.cpp'
-    : openaiApiKey && falApiKey
-      ? 'whisper-1->fal-ai/wizper'
-      : openaiApiKey
-        ? 'whisper-1'
-        : falApiKey
-          ? 'fal-ai/wizper'
-          : null
+  const providerHint = startInfo.providerHint
+  const modelId = startInfo.modelId
 
   const outputFile = join(tmpdir(), `summarize-${randomUUID()}.mp3`)
   try {
