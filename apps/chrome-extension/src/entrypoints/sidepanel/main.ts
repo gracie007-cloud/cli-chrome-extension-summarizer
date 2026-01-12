@@ -639,11 +639,13 @@ const showInlineError = (message: string) => {
   }
   inlineErrorMessageEl.textContent = message
   inlineErrorEl.classList.remove('hidden')
+  inlineErrorEl.style.display = ''
 }
 
 const clearInlineError = () => {
   inlineErrorMessageEl.textContent = ''
   inlineErrorEl.classList.add('hidden')
+  inlineErrorEl.style.display = 'none'
 }
 
 const setPhase = (phase: PanelPhase, opts?: { error?: string | null }) => {
@@ -2104,7 +2106,9 @@ function updateControls(state: UiState) {
   const tabChanged = nextTabId !== activeTabId
   const urlChanged =
     !tabChanged && nextTabUrl && activeTabUrl && !urlsMatch(nextTabUrl, activeTabUrl)
-  const nextMediaAvailable = Boolean(state.media && (state.media.hasVideo || state.media.hasAudio))
+  const isYoutubeWatch = nextTabUrl != null && /youtube\.com\/watch|youtu\.be\//i.test(nextTabUrl)
+  const nextMediaAvailable =
+    isYoutubeWatch || Boolean(state.media && (state.media.hasVideo || state.media.hasAudio))
   const nextVideoLabel = state.media?.hasAudio && !state.media.hasVideo ? 'Audio' : 'Video'
 
   if (tabChanged) {
@@ -2284,6 +2288,7 @@ function handleBgMessage(msg: BgToPanel) {
       }
       return
     case 'run:start': {
+      setPhase('connecting')
       lastAction = 'summarize'
       window.clearTimeout(autoKickTimer)
       if (panelState.chatStreaming) {
