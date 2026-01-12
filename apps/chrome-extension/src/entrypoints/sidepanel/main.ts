@@ -2047,12 +2047,6 @@ function handleBgMessage(msg: BgToPanel) {
       panelState.lastMeta = { inputSummary: null, model: null, modelLabel: null }
       void streamController.start(msg.run)
       return
-    case 'chat:history':
-      handleChatHistoryResponse(msg)
-      return
-    case 'agent:chunk':
-      handleAgentChunk(msg)
-      return
     }
     case 'chat:history':
       handleChatHistoryResponse(msg)
