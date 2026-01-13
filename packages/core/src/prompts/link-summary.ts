@@ -158,9 +158,31 @@ export function buildLinkSummaryPrompt({
   const timestampInstruction = hasTranscriptTimestamps
     ? 'Add a "Key moments" section with 3-6 bullets (2-4 if the summary is short). Start each bullet with a [mm:ss] (or [hh:mm:ss]) timestamp from the transcript. Keep the rest of the summary readable and follow the normal formatting guidance; do not prepend timestamps outside the Key moments section. Do not invent timestamps or use ranges.'
     : ''
+  const slideParagraphRange = (() => {
+    switch (preset) {
+      case 'short':
+        return '4-6'
+      case 'medium':
+        return '6-10'
+      case 'long':
+        return '8-14'
+      case 'xl':
+        return '12-20'
+      case 'xxl':
+        return '18-30'
+      default:
+        return '6-10'
+    }
+  })()
   const slideInstruction =
     slides && slides.count > 0
-      ? 'If you use slide content, add a [slide:N] tag inline (N = slide index). Only tag slide-derived statements.'
+      ? [
+          'Slides are provided as OCR text with slide indices and timestamps.',
+          'Include a section titled "### Slides" that summarizes the video along the timeline.',
+          'In that section, write short paragraphs (not bullets). Each paragraph MUST start with a [slide:N] tag (N = slide index) and then describe what is happening / being discussed around that moment.',
+          `Cover the whole timeline by picking representative slides; include about ${slideParagraphRange} slide paragraphs (adjust down if needed to stay within the length target).`,
+          'Use each slide index at most once.',
+        ].join(' ')
       : ''
   const listGuidanceLine =
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.'
