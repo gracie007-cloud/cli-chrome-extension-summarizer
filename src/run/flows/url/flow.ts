@@ -286,6 +286,13 @@ export async function runUrlFlow({
     let extractionUi = deriveExtractionUi(extracted)
     let slidesPlanned: SlideExtractionResult | null = null
     let slidesExtracted: SlideExtractionResult | null = null
+    let slidesDone = false
+
+    const markSlidesDone = (result: { ok: boolean; error?: string | null }) => {
+      if (slidesDone) return
+      slidesDone = true
+      hooks.onSlidesDone?.(result)
+    }
 
     const buildPlannedSlides = (source: { url: string; sourceId: string; kind: string }) => {
       if (!flags.slides) return null
@@ -360,69 +367,82 @@ export async function runUrlFlow({
 
     const runSlidesExtraction = async (): Promise<SlideExtractionResult | null> => {
       if (!flags.slides) return null
-      if (slidesExtracted) return slidesExtracted
-      const source = resolveSlideSource({ url, extracted })
-      if (!source) {
-        throw new Error('Slides are only supported for YouTube or direct video URLs.')
-      }
-      if (!slidesPlanned) {
-        slidesPlanned = buildPlannedSlides(source)
-        if (slidesPlanned) {
-          ctx.hooks.onSlidesExtracted?.(slidesPlanned)
-          ctx.hooks.onSlidesProgress?.(
-            `Slides: planned (${slidesPlanned.slides.length.toString()})`
-          )
-        }
-      }
-      const slidesCacheKey =
-        cacheStore && cacheState.mode === 'default'
-          ? buildSlidesCacheKey({ url: source.url, settings: flags.slides })
-          : null
-      if (slidesCacheKey && cacheStore) {
-        const cached = cacheStore.getJson<SlideExtractionResult>('slides', slidesCacheKey)
-        if (cached && (await isCachedSlidesValid(cached, source))) {
-          writeVerbose(io.stderr, flags.verbose, 'cache hit slides', flags.verboseColor)
-          slidesExtracted = cached
-          ctx.hooks.onSlidesExtracted?.(slidesExtracted)
-          ctx.hooks.onSlidesProgress?.('Slides: cached 100%')
-          return slidesExtracted
-        }
-        writeVerbose(io.stderr, flags.verbose, 'cache miss slides', flags.verboseColor)
-      }
-      if (flags.progressEnabled) {
-        spinner.setText('Extracting slides…')
-        oscProgress.setIndeterminate('Extracting slides')
-      }
-      // Prefer indeterminate progress until we get real percentage updates from the slide pipeline.
-      ctx.hooks.onSlidesProgress?.('Slides: extracting')
-      slidesExtracted = await extractSlidesForSource({
-        source,
-        settings: flags.slides,
-        noCache: cacheState.mode === 'bypass',
-        env: io.env,
-        timeoutMs: flags.timeoutMs,
-        ytDlpPath: model.apiStatus.ytDlpPath,
-        ffmpegPath: null,
-        tesseractPath: null,
-        hooks: {
-          onSlideChunk: (chunk) => ctx.hooks.onSlideChunk?.(chunk),
-          onSlidesProgress: ctx.hooks.onSlidesProgress ?? undefined,
-        },
-      })
       if (slidesExtracted) {
-        ctx.hooks.onSlidesExtracted?.(slidesExtracted)
-        ctx.hooks.onSlidesProgress?.(
-          `Slides: done (${slidesExtracted.slides.length.toString()} slides) 100%`
-        )
+        if (!slidesDone) markSlidesDone({ ok: true })
+        return slidesExtracted
+      }
+      let errorMessage: string | null = null
+      try {
+        const source = resolveSlideSource({ url, extracted })
+        if (!source) {
+          throw new Error('Slides are only supported for YouTube or direct video URLs.')
+        }
+        if (!slidesPlanned) {
+          slidesPlanned = buildPlannedSlides(source)
+          if (slidesPlanned) {
+            ctx.hooks.onSlidesExtracted?.(slidesPlanned)
+            ctx.hooks.onSlidesProgress?.(
+              `Slides: planned (${slidesPlanned.slides.length.toString()})`
+            )
+          }
+        }
+        const slidesCacheKey =
+          cacheStore && cacheState.mode === 'default'
+            ? buildSlidesCacheKey({ url: source.url, settings: flags.slides })
+            : null
         if (slidesCacheKey && cacheStore) {
-          cacheStore.setJson('slides', slidesCacheKey, slidesExtracted, cacheState.ttlMs)
-          writeVerbose(io.stderr, flags.verbose, 'cache write slides', flags.verboseColor)
+          const cached = cacheStore.getJson<SlideExtractionResult>('slides', slidesCacheKey)
+          if (cached && (await isCachedSlidesValid(cached, source))) {
+            writeVerbose(io.stderr, flags.verbose, 'cache hit slides', flags.verboseColor)
+            slidesExtracted = cached
+            ctx.hooks.onSlidesExtracted?.(slidesExtracted)
+            ctx.hooks.onSlidesProgress?.('Slides: cached 100%')
+            return slidesExtracted
+          }
+          writeVerbose(io.stderr, flags.verbose, 'cache miss slides', flags.verboseColor)
+        }
+        if (flags.progressEnabled) {
+          spinner.setText('Extracting slides…')
+          oscProgress.setIndeterminate('Extracting slides')
+        }
+        // Prefer indeterminate progress until we get real percentage updates from the slide pipeline.
+        ctx.hooks.onSlidesProgress?.('Slides: extracting')
+        slidesExtracted = await extractSlidesForSource({
+          source,
+          settings: flags.slides,
+          noCache: cacheState.mode === 'bypass',
+          env: io.env,
+          timeoutMs: flags.timeoutMs,
+          ytDlpPath: model.apiStatus.ytDlpPath,
+          ffmpegPath: null,
+          tesseractPath: null,
+          hooks: {
+            onSlideChunk: (chunk) => ctx.hooks.onSlideChunk?.(chunk),
+            onSlidesProgress: ctx.hooks.onSlidesProgress ?? undefined,
+          },
+        })
+        if (slidesExtracted) {
+          ctx.hooks.onSlidesExtracted?.(slidesExtracted)
+          ctx.hooks.onSlidesProgress?.(
+            `Slides: done (${slidesExtracted.slides.length.toString()} slides) 100%`
+          )
+          if (slidesCacheKey && cacheStore) {
+            cacheStore.setJson('slides', slidesCacheKey, slidesExtracted, cacheState.ttlMs)
+            writeVerbose(io.stderr, flags.verbose, 'cache write slides', flags.verboseColor)
+          }
+        }
+        if (flags.progressEnabled) {
+          updateSummaryProgress()
+        }
+        return slidesExtracted
+      } catch (error) {
+        errorMessage = error instanceof Error ? error.message : String(error)
+        throw error
+      } finally {
+        if (!slidesDone) {
+          markSlidesDone(errorMessage ? { ok: false, error: errorMessage } : { ok: true })
         }
       }
-      if (flags.progressEnabled) {
-        updateSummaryProgress()
-      }
-      return slidesExtracted
     }
 
     const updateSummaryProgress = () => {

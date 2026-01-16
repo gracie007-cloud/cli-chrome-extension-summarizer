@@ -36,6 +36,12 @@ type Session = {
   bufferBytes: number
   done: boolean
   clients: Set<http.ServerResponse>
+  slidesBuffer: Array<{ event: SessionEvent; bytes: number }>
+  slidesBufferBytes: number
+  slidesClients: Set<http.ServerResponse>
+  slidesDone: boolean
+  slidesRequested: boolean
+  slidesLastStatus: string | null
   lastMeta: {
     model: string | null
     modelLabel: string | null
@@ -207,6 +213,12 @@ function createSession(): Session {
     bufferBytes: 0,
     done: false,
     clients: new Set(),
+    slidesBuffer: [],
+    slidesBufferBytes: 0,
+    slidesClients: new Set(),
+    slidesDone: false,
+    slidesRequested: false,
+    slidesLastStatus: null,
     lastMeta: { model: null, modelLabel: null, inputSummary: null, summaryFromCache: null },
     slides: null,
   }
@@ -214,6 +226,9 @@ function createSession(): Session {
 
 const MAX_SESSION_BUFFER_EVENTS = 2000
 const MAX_SESSION_BUFFER_BYTES = 512 * 1024
+const MAX_SLIDES_BUFFER_EVENTS = 600
+const MAX_SLIDES_BUFFER_BYTES = 256 * 1024
+const MAX_SESSION_LIFETIME_MS = 30 * 60_000
 
 function pushToSession(
   session: Session,
@@ -238,6 +253,35 @@ function pushToSession(
   }
   if (evt.event === 'done' || evt.event === 'error') {
     session.done = true
+  }
+}
+
+function pushSlidesToSession(
+  session: Session,
+  evt: SessionEvent,
+  onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null
+) {
+  const encoded = encodeSseEvent(evt)
+  for (const res of session.slidesClients) {
+    res.write(encoded)
+  }
+  onSessionEvent?.(evt, session.id)
+  const bytes = Buffer.byteLength(encoded)
+  session.slidesBuffer.push({ event: evt, bytes })
+  session.slidesBufferBytes += bytes
+  while (
+    session.slidesBuffer.length > MAX_SLIDES_BUFFER_EVENTS ||
+    session.slidesBufferBytes > MAX_SLIDES_BUFFER_BYTES
+  ) {
+    const removed = session.slidesBuffer.shift()
+    if (!removed) break
+    session.slidesBufferBytes -= removed.bytes
+  }
+  if (evt.event === 'done' || evt.event === 'error') {
+    session.slidesDone = true
+  }
+  if (evt.event === 'status') {
+    session.slidesLastStatus = evt.data.text
   }
 }
 
@@ -270,6 +314,29 @@ function emitSlides(
   onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null
 ) {
   pushToSession(session, { event: 'slides', data }, onSessionEvent)
+  pushSlidesToSession(session, { event: 'slides', data }, onSessionEvent)
+}
+
+function emitSlidesStatus(
+  session: Session,
+  text: string,
+  onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null
+) {
+  const trimmed = text.trim()
+  if (!trimmed) return
+  pushSlidesToSession(session, { event: 'status', data: { text: trimmed } }, onSessionEvent)
+}
+
+function emitSlidesDone(
+  session: Session,
+  result: { ok: boolean; error?: string | null },
+  onSessionEvent?: ((event: SessionEvent, sessionId: string) => void) | null
+) {
+  if (!result.ok) {
+    const message = result.error?.trim() || 'Slides failed.'
+    pushSlidesToSession(session, { event: 'error', data: { message } }, onSessionEvent)
+  }
+  pushSlidesToSession(session, { event: 'done', data: {} }, onSessionEvent)
 }
 
 function resolveHomeDir(env: Record<string, string | undefined>): string {
@@ -344,6 +411,31 @@ function endSession(session: Session) {
     res.end()
   }
   session.clients.clear()
+  for (const res of session.slidesClients) {
+    res.end()
+  }
+  session.slidesClients.clear()
+}
+
+function scheduleSessionCleanup({
+  session,
+  sessions,
+  delayMs = 60_000,
+}: {
+  session: Session
+  sessions: Map<string, Session>
+  delayMs?: number
+}) {
+  setTimeout(() => {
+    const ageMs = Date.now() - session.createdAtMs
+    const slidesPending = session.slidesRequested && !session.slidesDone
+    if (!slidesPending || ageMs > MAX_SESSION_LIFETIME_MS) {
+      sessions.delete(session.id)
+      endSession(session)
+      return
+    }
+    scheduleSessionCleanup({ session, sessions, delayMs })
+  }, delayMs).unref()
 }
 
 export function buildHealthPayload(importMetaUrl?: string) {
@@ -593,7 +685,8 @@ export async function runDaemonServer({
           retries: obj.retries,
           maxOutputTokens: obj.maxOutputTokens,
         })
-        const slidesSettings = resolveSlidesSettings({ env, request: obj })
+            const slidesSettings = resolveSlidesSettings({ env, request: obj })
+            session.slidesRequested = Boolean(slidesSettings)
         const diagnostics = parseDiagnostics(obj.diagnostics)
         const includeContentLog = daemonLogger.enabled && diagnostics.includeContent
         const hasText = Boolean(textContent.trim())
@@ -870,26 +963,30 @@ export async function runDaemonServer({
                           onSessionEvent
                         )
                       },
-                      onSlidesProgress: includeContentLog
-                        ? (text) => {
-                            const clean = typeof text === 'string' ? text.trim() : ''
-                            if (!clean) return
-                            slideLogState.lastStatus = clean
-                            slideLogState.statusCount += 1
-                            if (clean.toLowerCase().includes('cached')) {
-                              slideLogState.cacheHit = true
-                            }
-                            const progressMatch = clean.match(/(\d+)%/)
-                            const progress = progressMatch ? Number(progressMatch[1]) : null
-                            requestLogger?.info({
-                              event: 'slides.status',
-                              url: pageUrl,
-                              sessionId: session.id,
-                              status: clean,
-                              ...(progress !== null ? { progress } : {}),
-                            })
-                          }
-                        : undefined,
+                      onSlidesDone: (result) => {
+                        emitSlidesDone(session, result, onSessionEvent)
+                      },
+                      onSlidesProgress: (text) => {
+                        const clean = typeof text === 'string' ? text.trim() : ''
+                        if (!clean) return
+                        slideLogState.lastStatus = clean
+                        slideLogState.statusCount += 1
+                        if (clean.toLowerCase().includes('cached')) {
+                          slideLogState.cacheHit = true
+                        }
+                        const progressMatch = clean.match(/(\d+)%/)
+                        const progress = progressMatch ? Number(progressMatch[1]) : null
+                        if (includeContentLog) {
+                          requestLogger?.info({
+                            event: 'slides.status',
+                            url: pageUrl,
+                            sessionId: session.id,
+                            status: clean,
+                            ...(progress !== null ? { progress } : {}),
+                          })
+                        }
+                        emitSlidesStatus(session, clean, onSessionEvent)
+                      },
                       onSlideChunk: (chunk) => {
                         const { slide, meta } = chunk
                         if (
@@ -1031,6 +1128,9 @@ export async function runDaemonServer({
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error)
             pushToSession(session, { event: 'error', data: { message } }, onSessionEvent)
+            if (session.slidesRequested && !session.slidesDone) {
+              emitSlidesDone(session, { ok: false, error: message }, onSessionEvent)
+            }
             // Preserve full stack trace in daemon logs for debugging.
             console.error('[summarize-daemon] summarize failed', error)
             requestLogger?.error({
@@ -1067,10 +1167,7 @@ export async function runDaemonServer({
                 : {}),
             })
           } finally {
-            setTimeout(() => {
-              sessions.delete(session.id)
-              endSession(session)
-            }, 60_000).unref()
+            scheduleSessionCleanup({ session, sessions })
           }
         })()
         return
@@ -1339,6 +1436,66 @@ export async function runDaemonServer({
         res.on('close', () => {
           clearInterval(keepalive)
           session.clients.delete(res)
+        })
+        return
+      }
+
+      const slidesEventsMatch = pathname.match(/^\/v1\/summarize\/([^/]+)\/slides\/events$/)
+      if (req.method === 'GET' && slidesEventsMatch) {
+        const id = slidesEventsMatch[1]
+        if (!id) {
+          json(res, 404, { ok: false }, cors)
+          return
+        }
+        const session = sessions.get(id)
+        if (!session || !session.slidesRequested) {
+          json(res, 404, { ok: false, error: 'not found' }, cors)
+          return
+        }
+
+        res.writeHead(200, {
+          ...cors,
+          'content-type': 'text/event-stream; charset=utf-8',
+          'cache-control': 'no-cache, no-transform',
+          connection: 'keep-alive',
+        })
+        session.slidesClients.add(res)
+
+        for (const entry of session.slidesBuffer) {
+          res.write(encodeSseEvent(entry.event))
+        }
+
+        const hasSlidesEvent = session.slidesBuffer.some((entry) => entry.event.event === 'slides')
+        if (!hasSlidesEvent && session.slides) {
+          res.write(
+            encodeSseEvent({
+              event: 'slides',
+              data: buildSlidesPayload({ slides: session.slides, port }),
+            })
+          )
+        }
+
+        const hasStatusEvent = session.slidesBuffer.some((entry) => entry.event.event === 'status')
+        if (!hasStatusEvent && session.slidesLastStatus) {
+          res.write(
+            encodeSseEvent({ event: 'status', data: { text: session.slidesLastStatus } })
+          )
+        }
+
+        if (session.slidesDone) {
+          res.end()
+          session.slidesClients.delete(res)
+          return
+        }
+
+        const keepalive = setInterval(() => {
+          res.write(`: keepalive ${Date.now()}\n\n`)
+        }, 15_000)
+        keepalive.unref()
+
+        res.on('close', () => {
+          clearInterval(keepalive)
+          session.slidesClients.delete(res)
         })
         return
       }

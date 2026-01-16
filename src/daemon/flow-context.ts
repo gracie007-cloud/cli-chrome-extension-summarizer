@@ -59,6 +59,7 @@ export type DaemonUrlFlowContextArgs = {
         ) => void)
       | null
     onSlidesProgress?: ((text: string) => void) | null
+    onSlidesDone?: ((result: { ok: boolean; error?: string | null }) => void) | null
     onSlideChunk?: (chunk: {
       slide: SlideImage
       meta: {
@@ -389,6 +390,7 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
       onExtracted: hooks?.onExtracted ?? null,
       onSlidesExtracted: hooks?.onSlidesExtracted ?? null,
       onSlidesProgress: hooks?.onSlidesProgress ?? null,
+      onSlidesDone: hooks?.onSlidesDone ?? null,
       onSlideChunk: hooks?.onSlideChunk ?? undefined,
       onLinkPreviewProgress: hooks?.onLinkPreviewProgress ?? null,
       onSummaryCached: hooks?.onSummaryCached ?? null,

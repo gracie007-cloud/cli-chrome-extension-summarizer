@@ -178,6 +178,9 @@ Problem: daemon must be secured; extension must discover and pair with it.
     - `text?: string` (required for `mode: "page"`; optional for `auto`)
     - `truncated?: boolean` (optional; indicates extracted `text` was shortened)
   - 200 JSON: `{ ok: true, id }`
+- `GET /v1/summarize/<id>/slides/events`
+  - Headers: `Authorization: Bearer <token>`
+  - SSE stream of slide updates (`slides`, `status`, `done`, `error`) independent of summary stream.
 - `POST /v1/agent` (SSE by default; JSON via `Accept: application/json` or `?format=json`)
   - Headers: `Authorization: Bearer <token>`
   - Body:
