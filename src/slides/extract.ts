@@ -157,6 +157,38 @@ export function resolveSlideSource({
   return null
 }
 
+export function resolveSlideSourceFromUrl(url: string): SlideSource | null {
+  const youtubeCandidate = extractYouTubeVideoId(url)
+  if (youtubeCandidate) {
+    return {
+      url: `https://www.youtube.com/watch?v=${youtubeCandidate}`,
+      kind: 'youtube',
+      sourceId: youtubeCandidate,
+    }
+  }
+
+  if (isDirectMediaUrl(url)) {
+    return {
+      url,
+      kind: 'direct',
+      sourceId: buildDirectSourceId(url),
+    }
+  }
+
+  if (isYouTubeUrl(url)) {
+    const fallbackId = extractYouTubeVideoId(url)
+    if (fallbackId) {
+      return {
+        url: `https://www.youtube.com/watch?v=${fallbackId}`,
+        kind: 'youtube',
+        sourceId: fallbackId,
+      }
+    }
+  }
+
+  return null
+}
+
 export async function extractSlidesForSource({
   source,
   settings,
@@ -528,15 +560,27 @@ export function parseShowinfoTimestamp(line: string): number | null {
 export function resolveExtractedTimestamp({
   requested,
   actual,
+  seekBase,
 }: {
   requested: number
   actual: number | null
+  seekBase?: number | null
 }): number {
   if (!Number.isFinite(requested)) return 0
   if (actual == null || !Number.isFinite(actual) || actual < 0) return requested
-  // With -ss before -i, showinfo PTS resets near 0. Treat small values as offsets.
-  if (actual <= 5) return requested + actual
-  return actual
+  const base =
+    typeof seekBase === 'number' && Number.isFinite(seekBase) && seekBase > 0 ? seekBase : null
+  if (!base) {
+    // With -ss before -i, showinfo PTS resets near 0. Treat small values as offsets.
+    if (actual <= 5) return requested + actual
+    return actual
+  }
+
+  const candidateRelative = base + actual
+  const candidateAbsolute = actual
+  const relativeDelta = Math.abs(candidateRelative - requested)
+  const absoluteDelta = Math.abs(candidateAbsolute - requested)
+  return relativeDelta <= absoluteDelta ? candidateRelative : candidateAbsolute
 }
 
 async function prepareSlidesDir(slidesDir: string): Promise<void> {
@@ -875,6 +919,7 @@ async function extractFramesAtTimestamps({
   const FRAME_ADJUST_STEP_SECONDS = 2
   const FRAME_MIN_BRIGHTNESS = 0.24
   const FRAME_MIN_CONTRAST = 0.16
+  const SEEK_PAD_SECONDS = 8
 
   const clampTimestamp = (value: number) => {
     const upper =
@@ -931,6 +976,7 @@ async function extractFramesAtTimestamps({
     slide: SlideImage
     quality: FrameQuality | null
     actualTimestamp: number | null
+    seekBase: number
   }> => {
     const stats: FrameStats = { ymin: null, ymax: null, yavg: null }
     let actualTimestamp: number | null = null
@@ -938,12 +984,14 @@ async function extractFramesAtTimestamps({
       typeof opts?.timeoutMs === 'number' && Number.isFinite(opts.timeoutMs) && opts.timeoutMs > 0
         ? opts.timeoutMs
         : timeoutMs
+    const seekBase = Math.max(0, timestamp - SEEK_PAD_SECONDS)
+    const seekOffset = Math.max(0, timestamp - seekBase)
     const args = [
       '-hide_banner',
-      '-ss',
-      String(timestamp),
+      ...(seekBase > 0 ? ['-ss', String(seekBase)] : []),
       '-i',
       inputPath,
+      ...(seekOffset > 0 ? ['-ss', String(seekOffset)] : []),
       '-vf',
       'signalstats,showinfo,metadata=print',
       '-vframes',
@@ -976,6 +1024,7 @@ async function extractFramesAtTimestamps({
       slide: { index: 0, timestamp, imagePath: outputPath },
       quality,
       actualTimestamp,
+      seekBase,
     }
   }
 
@@ -999,11 +1048,16 @@ async function extractFramesAtTimestamps({
     const resolvedTimestamp = resolveExtractedTimestamp({
       requested: safeTimestamp,
       actual: extracted.actualTimestamp,
+      seekBase: extracted.seekBase,
     })
     const delta = resolvedTimestamp - safeTimestamp
     if (Math.abs(delta) >= 0.25) {
+      const actualLabel =
+        extracted.actualTimestamp != null && Number.isFinite(extracted.actualTimestamp)
+          ? extracted.actualTimestamp.toFixed(2)
+          : 'n/a'
       logSlides(
-        `frame pts slide=${index + 1} req=${safeTimestamp.toFixed(2)}s -> ${resolvedTimestamp.toFixed(2)}s delta=${delta.toFixed(2)}s`
+        `frame pts slide=${index + 1} req=${safeTimestamp.toFixed(2)}s actual=${actualLabel}s base=${extracted.seekBase.toFixed(2)}s -> ${resolvedTimestamp.toFixed(2)}s delta=${delta.toFixed(2)}s`
       )
     }
     const imageVersion = Date.now()
@@ -1086,10 +1140,15 @@ async function extractFramesAtTimestamps({
             timeoutMs: Math.min(timeoutMs, 12_000),
           })
           if (!candidate.quality) continue
+          const resolvedCandidateTimestamp = resolveExtractedTimestamp({
+            requested: candidateTimestamp,
+            actual: candidate.actualTimestamp,
+            seekBase: candidate.seekBase,
+          })
           const score = scoreQuality(candidate.quality, offsetSeconds)
           if (score > best.score + minImproveDelta) {
             best = {
-              timestamp: candidateTimestamp,
+              timestamp: resolvedCandidateTimestamp,
               offsetSeconds,
               quality: candidate.quality,
               score,
@@ -1106,7 +1165,7 @@ async function extractFramesAtTimestamps({
               }
             }
             didReplace = true
-            selectedTimestamp = candidateTimestamp
+            selectedTimestamp = resolvedCandidateTimestamp
           } else {
             await fs.rm(tempPath, { force: true }).catch(() => null)
           }
