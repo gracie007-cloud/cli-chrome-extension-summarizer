@@ -54,7 +54,6 @@ export function createSlidesStreamController(
     activeAbortState = abortState
     streaming = true
     let sawDone = false
-    let hadError = false
 
     try {
       const res = await (fetchImpl ?? fetch)(
@@ -116,7 +115,6 @@ export function createSlidesStreamController(
         }
       }
       if (nextController.signal.aborted && abortState.reason !== 'timeout') return
-      hadError = true
       onError?.(err)
     } finally {
       if (controller === nextController) {
