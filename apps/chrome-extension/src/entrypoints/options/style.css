@@ -487,6 +487,48 @@ form {
   grid-column: 1 / -1;
 }
 
+.logsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.logsActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logsAuto {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.logsControls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.logsOutput {
+  margin: 0;
+  padding: 12px;
+  min-height: 220px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .sectionTitle {
   margin: 0;
 }
@@ -539,6 +581,23 @@ form {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
+}
+
+.combo > .miniButton {
+  justify-self: start;
+  align-self: start;
+}
+
+#automationPermissions.miniButton {
+  padding-top: 1px;
+  padding-bottom: 3px;
+  line-height: 1.1;
+}
+
+#hoverPromptReset.miniButton {
+  padding-top: 1px;
+  padding-bottom: 3px;
+  line-height: 1.1;
 }
 
 .miniButton:hover {
@@ -692,6 +751,11 @@ label {
   gap: 6px;
   padding: 2px 0;
   min-width: 0;
+}
+
+.advancedGrid > label {
+  align-content: start;
+  grid-template-rows: auto minmax(32px, auto) auto;
 }
 
 .inputRow {
@@ -981,8 +1045,8 @@ textarea {
 
 .combo {
   display: grid;
-  gap: 6px;
-  padding: 2px 0;
+  gap: 10px;
+  padding: 6px 0;
   min-width: 0;
 }
 
@@ -993,8 +1057,12 @@ textarea {
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   color: var(--text);
+}
+
+.combo .row + .subtitle {
+  padding-left: 28px;
 }
 
 .checkboxRoot {

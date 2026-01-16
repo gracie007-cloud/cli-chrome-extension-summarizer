@@ -75,6 +75,17 @@
           >
             Advanced
           </button>
+          <button
+            id="tab-logs"
+            class="tabButton"
+            type="button"
+            role="tab"
+            data-tab="logs"
+            aria-controls="panel-logs"
+            aria-selected="false"
+          >
+            Logs
+          </button>
         </div>
 
         <div id="panel-general" class="tabPanel" role="tabpanel" data-tab-panel="general" aria-labelledby="tab-general">
@@ -361,8 +372,45 @@
           </section>
         </div>
 
+        <div
+          id="panel-logs"
+          class="tabPanel"
+          role="tabpanel"
+          data-tab-panel="logs"
+          aria-labelledby="tab-logs"
+          hidden
+        >
+          <section class="section">
+            <div class="logsHeader">
+              <h2>Logs</h2>
+              <div class="logsActions">
+                <button id="logsRefresh" type="button" class="miniButton">Refresh</button>
+                <label class="logsAuto">
+                  <input id="logsAuto" type="checkbox" />
+                  <span>Auto</span>
+                </label>
+              </div>
+            </div>
+            <div class="logsControls">
+              <label>
+                <span>Source</span>
+                <select id="logsSource">
+                  <option value="daemon">daemon.jsonl</option>
+                  <option value="stderr">daemon.err.log</option>
+                  <option value="stdout">daemon.log</option>
+                </select>
+              </label>
+              <label>
+                <span>Tail lines</span>
+                <input id="logsTail" type="number" min="100" max="5000" step="100" value="800" />
+              </label>
+            </div>
+            <div id="logsMeta" class="hint"></div>
+            <pre id="logsOutput" class="logsOutput" aria-live="polite"></pre>
+          </section>
+        </div>
+
         <div class="buttons">
-          <button type="submit">Save</button>
           <span id="status" class="status"></span>
         </div>
       </form>

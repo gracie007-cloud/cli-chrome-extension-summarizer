@@ -7,7 +7,7 @@ import {
 } from '../../automation/skills-store'
 import { buildUserScriptsGuidance, getUserScriptsStatus } from '../../automation/userscripts'
 import { readPresetOrCustomValue, resolvePresetOrCustom } from '../../lib/combo'
-import { defaultSettings, loadSettings, patchSettings, saveSettings } from '../../lib/settings'
+import { defaultSettings, loadSettings, saveSettings } from '../../lib/settings'
 import { applyTheme, type ColorMode, type ColorScheme } from '../../lib/theme'
 import { mountCheckbox } from '../../ui/zag-checkbox'
 import { mountOptionsPickers } from './pickers'
@@ -62,6 +62,12 @@ const fontFamilyEl = byId<HTMLInputElement>('fontFamily')
 const fontSizeEl = byId<HTMLInputElement>('fontSize')
 const buildInfoEl = document.getElementById('buildInfo')
 const daemonStatusEl = byId<HTMLDivElement>('daemonStatus')
+const logsSourceEl = byId<HTMLSelectElement>('logsSource')
+const logsTailEl = byId<HTMLInputElement>('logsTail')
+const logsRefreshBtn = byId<HTMLButtonElement>('logsRefresh')
+const logsAutoEl = byId<HTMLInputElement>('logsAuto')
+const logsOutputEl = byId<HTMLPreElement>('logsOutput')
+const logsMetaEl = byId<HTMLDivElement>('logsMeta')
 const tabsRoot = byId<HTMLDivElement>('tabs')
 const tabButtons = Array.from(tabsRoot.querySelectorAll<HTMLButtonElement>('[data-tab]'))
 const tabPanels = Array.from(document.querySelectorAll<HTMLElement>('[data-tab-panel]'))
@@ -81,6 +87,12 @@ const setActiveTab = (next: string) => {
     panel.hidden = !isActive
   }
   localStorage.setItem(tabStorageKey, next)
+  if (next === 'logs') {
+    void refreshLogs()
+    if (logsAutoEl.checked) startLogsAuto()
+  } else {
+    stopLogsAuto()
+  }
 }
 
 const storedTab = localStorage.getItem(tabStorageKey)
@@ -131,8 +143,112 @@ let editingSkill: Skill | null = null
 let importConflicts: Array<{ skill: Skill; selected: boolean }> = []
 let importedSkills: Skill[] = []
 
+let logsAutoTimer = 0
+let logsRefreshInFlight = false
+let isInitializing = true
+let saveTimer = 0
+let saveInFlight = false
+let saveQueued = false
+let saveSequence = 0
+
 const setStatus = (text: string) => {
   statusEl.textContent = text
+}
+
+const setLogsMeta = (text: string) => {
+  logsMetaEl.textContent = text
+}
+
+const setLogsOutput = (text: string) => {
+  logsOutputEl.textContent = text
+}
+
+const resolveActiveTab = (): string | null => {
+  const active = tabButtons.find((button) => button.getAttribute('aria-selected') === 'true')
+  return active?.dataset.tab ?? null
+}
+
+const normalizeTailCount = (value: string) => {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return 800
+  return Math.max(100, Math.min(5000, Math.round(parsed)))
+}
+
+const stopLogsAuto = () => {
+  if (logsAutoTimer) window.clearInterval(logsAutoTimer)
+  logsAutoTimer = 0
+}
+
+const startLogsAuto = () => {
+  stopLogsAuto()
+  logsAutoTimer = window.setInterval(() => {
+    if (resolveActiveTab() !== 'logs') return
+    void refreshLogs(true)
+  }, 2000)
+}
+
+async function refreshLogs(isAuto = false) {
+  if (logsRefreshInFlight) return
+  if (resolveActiveTab() !== 'logs') return
+  const token = tokenEl.value.trim()
+  if (!token) {
+    setLogsMeta('Add token to load daemon logs.')
+    setLogsOutput('')
+    return
+  }
+  logsRefreshInFlight = true
+  const source = logsSourceEl.value.trim() || 'daemon'
+  const tail = normalizeTailCount(logsTailEl.value)
+  logsTailEl.value = String(tail)
+  if (!isAuto) {
+    setLogsMeta('Loading logs…')
+  }
+  try {
+    const url = new URL('http://127.0.0.1:8787/v1/logs')
+    url.searchParams.set('source', source)
+    url.searchParams.set('tail', String(tail))
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+      const message = body?.error ? body.error : `${res.status} ${res.statusText}`
+      setLogsMeta(message)
+      setLogsOutput('')
+      return
+    }
+    const json = (await res.json()) as {
+      ok: boolean
+      lines?: string[]
+      truncated?: boolean
+      sizeBytes?: number
+      mtimeMs?: number
+      warning?: string
+      format?: string
+    }
+    if (!json?.ok || !Array.isArray(json.lines)) {
+      setLogsMeta('No logs returned.')
+      setLogsOutput('')
+      return
+    }
+    const summaryParts: string[] = []
+    if (typeof json.sizeBytes === 'number') {
+      summaryParts.push(`size ${Math.round(json.sizeBytes / 1024)}kb`)
+    }
+    if (typeof json.mtimeMs === 'number') {
+      summaryParts.push(`updated ${new Date(json.mtimeMs).toLocaleTimeString()}`)
+    }
+    if (json.truncated) summaryParts.push('tail truncated')
+    if (json.warning) summaryParts.push(json.warning)
+    setLogsMeta(summaryParts.join(' · '))
+    setLogsOutput(json.lines.join('\n'))
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    setLogsMeta(message)
+    setLogsOutput('')
+  } finally {
+    logsRefreshInFlight = false
+  }
 }
 
 let statusTimer = 0
@@ -140,6 +256,76 @@ const flashStatus = (text: string, duration = 900) => {
   window.clearTimeout(statusTimer)
   setStatus(text)
   statusTimer = window.setTimeout(() => setStatus(''), duration)
+}
+
+const scheduleAutoSave = (delay = 500) => {
+  if (isInitializing) return
+  window.clearTimeout(saveTimer)
+  saveTimer = window.setTimeout(() => {
+    void saveNow()
+  }, delay)
+}
+
+const saveNow = async () => {
+  if (saveInFlight) {
+    saveQueued = true
+    return
+  }
+  saveInFlight = true
+  saveQueued = false
+  const currentSeq = ++saveSequence
+  setStatus('Saving…')
+  try {
+    const current = await loadSettings()
+    await saveSettings({
+      token: tokenEl.value || defaultSettings.token,
+      model: readCurrentModelValue(),
+      length: current.length,
+      language: readPresetOrCustomValue({
+        presetValue: languagePresetEl.value,
+        customValue: languageCustomEl.value,
+        defaultValue: defaultSettings.language,
+      }),
+      promptOverride: promptOverrideEl.value || defaultSettings.promptOverride,
+      hoverPrompt: hoverPromptEl.value || defaultSettings.hoverPrompt,
+      autoSummarize: autoValue,
+      hoverSummaries: hoverSummariesValue,
+      chatEnabled: chatEnabledValue,
+      automationEnabled: automationEnabledValue,
+      slidesEnabled: current.slidesEnabled,
+      slidesLayout: current.slidesLayout,
+      summaryTimestamps: summaryTimestampsValue,
+      extendedLogging: extendedLoggingValue,
+      maxChars: Number(maxCharsEl.value) || defaultSettings.maxChars,
+      requestMode: requestModeEl.value || defaultSettings.requestMode,
+      firecrawlMode: firecrawlModeEl.value || defaultSettings.firecrawlMode,
+      markdownMode: markdownModeEl.value || defaultSettings.markdownMode,
+      preprocessMode: preprocessModeEl.value || defaultSettings.preprocessMode,
+      youtubeMode: youtubeModeEl.value || defaultSettings.youtubeMode,
+      transcriber: transcriberEl.value || defaultSettings.transcriber,
+      timeout: timeoutEl.value || defaultSettings.timeout,
+      retries: (() => {
+        const raw = retriesEl.value.trim()
+        if (!raw) return defaultSettings.retries
+        const parsed = Number(raw)
+        return Number.isFinite(parsed) ? parsed : defaultSettings.retries
+      })(),
+      maxOutputTokens: maxOutputTokensEl.value || defaultSettings.maxOutputTokens,
+      colorScheme: currentScheme || defaultSettings.colorScheme,
+      colorMode: currentMode || defaultSettings.colorMode,
+      fontFamily: fontFamilyEl.value || defaultSettings.fontFamily,
+      fontSize: Number(fontSizeEl.value) || defaultSettings.fontSize,
+    })
+    if (currentSeq === saveSequence) {
+      flashStatus('Saved')
+    }
+  } finally {
+    saveInFlight = false
+    if (saveQueued) {
+      saveQueued = false
+      void saveNow()
+    }
+  }
 }
 
 const setBuildInfo = () => {
@@ -427,10 +613,12 @@ const pickerHandlers = {
   onSchemeChange: (value: ColorScheme) => {
     currentScheme = value
     applyTheme({ scheme: currentScheme, mode: currentMode })
+    scheduleAutoSave(200)
   },
   onModeChange: (value: ColorMode) => {
     currentMode = value
     applyTheme({ scheme: currentScheme, mode: currentMode })
+    scheduleAutoSave(200)
   },
 }
 
@@ -451,6 +639,7 @@ const updateAutoToggle = () => {
 const handleAutoToggleChange = (checked: boolean) => {
   autoValue = checked
   updateAutoToggle()
+  scheduleAutoSave(0)
 }
 const autoToggle = mountCheckbox(autoToggleRoot, {
   id: 'options-auto',
@@ -470,6 +659,7 @@ const updateChatToggle = () => {
 const handleChatToggleChange = (checked: boolean) => {
   chatEnabledValue = checked
   updateChatToggle()
+  scheduleAutoSave(0)
 }
 const chatToggle = mountCheckbox(chatToggleRoot, {
   id: 'options-chat',
@@ -489,7 +679,7 @@ const updateAutomationToggle = () => {
 const handleAutomationToggleChange = (checked: boolean) => {
   automationEnabledValue = checked
   updateAutomationToggle()
-  void patchSettings({ automationEnabled: automationEnabledValue })
+  scheduleAutoSave(0)
   void updateAutomationPermissionsUi()
 }
 const automationToggle = mountCheckbox(automationToggleRoot, {
@@ -934,6 +1124,7 @@ const updateHoverSummariesToggle = () => {
 const handleHoverSummariesToggleChange = (checked: boolean) => {
   hoverSummariesValue = checked
   updateHoverSummariesToggle()
+  scheduleAutoSave(0)
 }
 const hoverSummariesToggle = mountCheckbox(hoverSummariesToggleRoot, {
   id: 'options-hover-summaries',
@@ -953,6 +1144,7 @@ const updateSummaryTimestampsToggle = () => {
 const handleSummaryTimestampsToggleChange = (checked: boolean) => {
   summaryTimestampsValue = checked
   updateSummaryTimestampsToggle()
+  scheduleAutoSave(0)
 }
 const summaryTimestampsToggle = mountCheckbox(summaryTimestampsToggleRoot, {
   id: 'options-summary-timestamps',
@@ -972,6 +1164,7 @@ const updateExtendedLoggingToggle = () => {
 const handleExtendedLoggingToggleChange = (checked: boolean) => {
   extendedLoggingValue = checked
   updateExtendedLoggingToggle()
+  scheduleAutoSave(0)
 }
 const extendedLoggingToggle = mountCheckbox(extendedLoggingToggleRoot, {
   id: 'options-extended-logging',
@@ -1024,6 +1217,7 @@ async function load() {
   applyTheme({ scheme: s.colorScheme, mode: s.colorMode })
   await loadSkills()
   await updateAutomationPermissionsUi()
+  isInitializing = false
 }
 
 let refreshTimer = 0
@@ -1033,6 +1227,7 @@ tokenEl.addEventListener('input', () => {
     void refreshModelPresets(tokenEl.value)
     void checkDaemonStatus(tokenEl.value)
   }, 350)
+  scheduleAutoSave(600)
 })
 
 const copyToken = async () => {
@@ -1075,64 +1270,114 @@ modelCustomEl.addEventListener('pointerdown', refreshModelsIfStale)
 languagePresetEl.addEventListener('change', () => {
   languageCustomEl.hidden = languagePresetEl.value !== 'custom'
   if (!languageCustomEl.hidden) languageCustomEl.focus()
+  scheduleAutoSave(200)
 })
 
 hoverPromptResetBtn.addEventListener('click', () => {
   hoverPromptEl.value = defaultSettings.hoverPrompt
+  scheduleAutoSave(200)
 })
 
 modelPresetEl.addEventListener('change', () => {
   modelCustomEl.hidden = modelPresetEl.value !== 'custom'
   if (!modelCustomEl.hidden) modelCustomEl.focus()
+  scheduleAutoSave(200)
+})
+
+modelCustomEl.addEventListener('input', () => {
+  scheduleAutoSave(600)
+})
+
+languageCustomEl.addEventListener('input', () => {
+  scheduleAutoSave(600)
+})
+
+promptOverrideEl.addEventListener('input', () => {
+  scheduleAutoSave(600)
+})
+
+hoverPromptEl.addEventListener('input', () => {
+  scheduleAutoSave(600)
+})
+
+maxCharsEl.addEventListener('input', () => {
+  scheduleAutoSave(400)
+})
+
+requestModeEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+firecrawlModeEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+markdownModeEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+preprocessModeEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+youtubeModeEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+transcriberEl.addEventListener('change', () => {
+  scheduleAutoSave(200)
+})
+
+timeoutEl.addEventListener('input', () => {
+  scheduleAutoSave(400)
+})
+
+retriesEl.addEventListener('input', () => {
+  scheduleAutoSave(300)
+})
+
+maxOutputTokensEl.addEventListener('input', () => {
+  scheduleAutoSave(300)
+})
+
+fontFamilyEl.addEventListener('input', () => {
+  scheduleAutoSave(600)
+})
+
+fontSizeEl.addEventListener('input', () => {
+  scheduleAutoSave(300)
+})
+
+logsRefreshBtn.addEventListener('click', () => {
+  void refreshLogs()
+})
+
+logsSourceEl.addEventListener('change', () => {
+  void refreshLogs()
+})
+
+logsTailEl.addEventListener('change', () => {
+  const next = normalizeTailCount(logsTailEl.value)
+  logsTailEl.value = String(next)
+  void refreshLogs()
+})
+
+logsAutoEl.addEventListener('change', () => {
+  if (logsAutoEl.checked) {
+    startLogsAuto()
+    void refreshLogs()
+  } else {
+    stopLogsAuto()
+  }
+})
+
+window.addEventListener('beforeunload', () => {
+  stopLogsAuto()
 })
 
 formEl.addEventListener('submit', (e) => {
   e.preventDefault()
-  void (async () => {
-    setStatus('Saving…')
-    const current = await loadSettings()
-    await saveSettings({
-      token: tokenEl.value || defaultSettings.token,
-      model: readCurrentModelValue(),
-      length: current.length,
-      language: readPresetOrCustomValue({
-        presetValue: languagePresetEl.value,
-        customValue: languageCustomEl.value,
-        defaultValue: defaultSettings.language,
-      }),
-      promptOverride: promptOverrideEl.value || defaultSettings.promptOverride,
-      hoverPrompt: hoverPromptEl.value || defaultSettings.hoverPrompt,
-      autoSummarize: autoValue,
-      hoverSummaries: hoverSummariesValue,
-      chatEnabled: chatEnabledValue,
-      automationEnabled: automationEnabledValue,
-      slidesEnabled: current.slidesEnabled,
-      slidesLayout: current.slidesLayout,
-      summaryTimestamps: summaryTimestampsValue,
-      extendedLogging: extendedLoggingValue,
-      maxChars: Number(maxCharsEl.value) || defaultSettings.maxChars,
-      requestMode: requestModeEl.value || defaultSettings.requestMode,
-      firecrawlMode: firecrawlModeEl.value || defaultSettings.firecrawlMode,
-      markdownMode: markdownModeEl.value || defaultSettings.markdownMode,
-      preprocessMode: preprocessModeEl.value || defaultSettings.preprocessMode,
-      youtubeMode: youtubeModeEl.value || defaultSettings.youtubeMode,
-      transcriber: transcriberEl.value || defaultSettings.transcriber,
-      timeout: timeoutEl.value || defaultSettings.timeout,
-      retries: (() => {
-        const raw = retriesEl.value.trim()
-        if (!raw) return defaultSettings.retries
-        const parsed = Number(raw)
-        return Number.isFinite(parsed) ? parsed : defaultSettings.retries
-      })(),
-      maxOutputTokens: maxOutputTokensEl.value || defaultSettings.maxOutputTokens,
-      colorScheme: currentScheme || defaultSettings.colorScheme,
-      colorMode: currentMode || defaultSettings.colorMode,
-      fontFamily: fontFamilyEl.value || defaultSettings.fontFamily,
-      fontSize: Number(fontSizeEl.value) || defaultSettings.fontSize,
-    })
-    setStatus('Saved')
-    setTimeout(() => setStatus(''), 900)
-  })()
+  void saveNow()
 })
 
 setBuildInfo()
