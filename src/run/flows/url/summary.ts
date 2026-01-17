@@ -28,7 +28,7 @@ import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js
 import type { ModelAttempt } from '../../types.js'
 import type { UrlExtractionUi } from './extract.js'
 import type { SlidesTerminalOutput } from './slides-output.js'
-import { interleaveSlidesIntoTranscript } from './slides-text.js'
+import { coerceSummaryWithSlides, interleaveSlidesIntoTranscript } from './slides-text.js'
 import type { UrlFlowContext } from './types.js'
 
 type SlidesResult = Awaited<
@@ -153,9 +153,8 @@ function buildSlidesPromptText({
     const excerptBudget = remaining > 0 ? Math.min(perSlideBudget, remaining) : 0
     const excerpt =
       excerptRaw && excerptBudget > 0 ? truncateTranscript(excerptRaw, excerptBudget) : ''
-    const block = excerpt
-      ? `Slide ${slide.index} [${formatTimestamp(start)}–${formatTimestamp(end)}]:\n${excerpt}`
-      : `Slide ${slide.index} [${formatTimestamp(start)}–${formatTimestamp(end)}]:`
+    const label = `[slide:${slide.index}] [${formatTimestamp(start)}–${formatTimestamp(end)}]`
+    const block = excerpt ? `${label}\n${excerpt}` : label
     blocks.push(block)
     remaining = Math.max(0, remaining - block.length)
   }
@@ -821,7 +820,17 @@ export async function summarizeExtractedUrl({
 
   if (slidesOutput) {
     if (!summaryAlreadyPrinted) {
-      await slidesOutput.renderFromText(summary)
+      const summaryForSlides =
+        slides && slides.slides.length > 0
+          ? coerceSummaryWithSlides({
+              markdown: summary,
+              slides: slides.slides.map((slide) => ({
+                index: slide.index,
+                timestamp: slide.timestamp,
+              })),
+            })
+          : summary
+      await slidesOutput.renderFromText(summaryForSlides)
     }
   } else if (!summaryAlreadyPrinted) {
     hooks.clearProgressForStdout()

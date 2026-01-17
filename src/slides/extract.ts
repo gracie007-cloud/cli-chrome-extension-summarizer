@@ -121,6 +121,7 @@ type ExtractSlidesArgs = {
         ocrAvailable: boolean
       }
     }) => void
+    onSlidesTimeline?: ((slides: SlideExtractionResult) => void) | null
     onSlidesProgress?: ((text: string) => void) | null
     onSlidesLog?: ((message: string) => void) | null
   } | null
@@ -220,6 +221,7 @@ export async function extractSlidesForSource({
       if (!noCache) {
         const cached = await readSlidesCacheIfValid({ source, settings })
         if (cached) {
+          hooks?.onSlidesTimeline?.(cached)
           return cached
         }
       }
@@ -410,6 +412,24 @@ export async function extractSlidesForSource({
           settings.maxSlides,
           warnings
         )
+
+        const timelineSlides: SlideExtractionResult = {
+          sourceUrl: source.url,
+          sourceKind: source.kind,
+          sourceId: source.sourceId,
+          slidesDir,
+          slidesDirId: buildSlidesDirId(slidesDir),
+          sceneThreshold: settings.sceneThreshold,
+          autoTuneThreshold: settings.autoTuneThreshold,
+          autoTune: detection.autoTune,
+          maxSlides: settings.maxSlides,
+          minSlideDuration: settings.minDurationSeconds,
+          ocrRequested: settings.ocr,
+          ocrAvailable,
+          slides: trimmed.map(({ segment: _segment, ...slide }) => slide),
+          warnings,
+        }
+        hooks?.onSlidesTimeline?.(timelineSlides)
 
         // Emit placeholders immediately so the UI can render the slide list while frames are still extracting.
         if (hooks?.onSlideChunk) {

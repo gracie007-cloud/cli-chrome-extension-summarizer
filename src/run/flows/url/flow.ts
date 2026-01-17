@@ -286,9 +286,21 @@ export async function runUrlFlow({
 
     let extracted = await fetchWithCache(url)
     let extractionUi = deriveExtractionUi(extracted)
-    let slidesPlanned: SlideExtractionResult | null = null
     let slidesExtracted: SlideExtractionResult | null = null
     let slidesDone = false
+    let slidesTimelineResolved = false
+    let resolveSlidesTimeline: ((value: SlideExtractionResult | null) => void) | null = null
+    const slidesTimelinePromise = flags.slides
+      ? new Promise<SlideExtractionResult | null>((resolve) => {
+          resolveSlidesTimeline = resolve
+        })
+      : null
+
+    const resolveTimeline = (value: SlideExtractionResult | null) => {
+      if (slidesTimelineResolved) return
+      slidesTimelineResolved = true
+      resolveSlidesTimeline?.(value)
+    }
     const slidesOutputEnabled = Boolean(flags.slides) && !flags.json && !flags.extractMode
     const slidesOutput = createSlidesTerminalOutput({
       io,
@@ -326,55 +338,6 @@ export async function runUrlFlow({
       hooks.onSlidesDone?.(result)
     }
 
-    const buildPlannedSlides = (source: { url: string; sourceId: string; kind: string }) => {
-      if (!flags.slides) return null
-      const durationSeconds = extracted.mediaDurationSeconds
-      if (!durationSeconds || !Number.isFinite(durationSeconds) || durationSeconds <= 0) return null
-
-      const maxSlides = Math.max(1, Math.floor(flags.slides.maxSlides))
-      const minDuration = Math.max(0, flags.slides.minDurationSeconds)
-      const targetCount = Math.min(
-        maxSlides,
-        Math.max(3, Math.round(durationSeconds / Math.max(1, minDuration || 1)))
-      )
-      const intervalSeconds = Math.max(Math.max(2, minDuration), durationSeconds / targetCount)
-      const timestamps: number[] = []
-      for (
-        let t = 0;
-        t < durationSeconds && timestamps.length < targetCount;
-        t += intervalSeconds
-      ) {
-        timestamps.push(t)
-      }
-      if (timestamps.length === 0) return null
-      const slides = timestamps.map((timestamp, index) => ({
-        index: index + 1,
-        timestamp,
-        imagePath: '',
-      }))
-
-      return {
-        sourceUrl: source.url,
-        sourceKind: source.kind,
-        sourceId: source.sourceId,
-        slidesDir: '',
-        sceneThreshold: flags.slides.sceneThreshold,
-        autoTuneThreshold: flags.slides.autoTuneThreshold,
-        autoTune: {
-          enabled: false,
-          chosenThreshold: flags.slides.sceneThreshold,
-          confidence: 0,
-          strategy: 'none',
-        },
-        maxSlides: flags.slides.maxSlides,
-        minSlideDuration: flags.slides.minDurationSeconds,
-        ocrRequested: flags.slides.ocr,
-        ocrAvailable: false,
-        slides,
-        warnings: ['planned'],
-      } as SlideExtractionResult
-    }
-
     const runSlidesExtraction = async (): Promise<SlideExtractionResult | null> => {
       if (!flags.slides) return null
       if (slidesExtracted) {
@@ -386,15 +349,6 @@ export async function runUrlFlow({
         const source = resolveSlideSource({ url, extracted })
         if (!source) {
           throw new Error('Slides are only supported for YouTube or direct video URLs.')
-        }
-        if (!slidesPlanned) {
-          slidesPlanned = buildPlannedSlides(source)
-          if (slidesPlanned) {
-            ctx.hooks.onSlidesExtracted?.(slidesPlanned)
-            ctx.hooks.onSlidesProgress?.(
-              `Slides: planned (${slidesPlanned.slides.length.toString()})`
-            )
-          }
         }
         const slidesCacheKey =
           cacheStore && cacheState.mode === 'default'
@@ -408,6 +362,7 @@ export async function runUrlFlow({
           if (validated) {
             writeVerbose(io.stderr, flags.verbose, 'cache hit slides', flags.verboseColor)
             slidesExtracted = validated
+            resolveTimeline(validated)
             ctx.hooks.onSlidesExtracted?.(slidesExtracted)
             ctx.hooks.onSlidesProgress?.('Slides: cached 100%')
             return slidesExtracted
@@ -434,6 +389,10 @@ export async function runUrlFlow({
           tesseractPath: null,
           hooks: {
             onSlideChunk: (chunk) => ctx.hooks.onSlideChunk?.(chunk),
+            onSlidesTimeline: (timeline) => {
+              resolveTimeline(timeline)
+              ctx.hooks.onSlidesExtracted?.(timeline)
+            },
             onSlidesProgress: ctx.hooks.onSlidesProgress ?? undefined,
             onSlidesLog,
           },
@@ -456,6 +415,9 @@ export async function runUrlFlow({
         errorMessage = error instanceof Error ? error.message : String(error)
         throw error
       } finally {
+        if (!slidesTimelineResolved) {
+          resolveTimeline(slidesExtracted ?? null)
+        }
         if (!slidesDone) {
           markSlidesDone(errorMessage ? { ok: false, error: errorMessage } : { ok: true })
         }
@@ -571,7 +533,7 @@ export async function runUrlFlow({
       }
     }
 
-    // Start slides in parallel; the prompt uses planned timestamps.
+    // Start slides in parallel; wait for real timing data before prompting.
     if (flags.slides) {
       void runSlidesExtraction().catch((error) => {
         const message = error instanceof Error ? error.message : String(error)
@@ -582,6 +544,11 @@ export async function runUrlFlow({
 
     hooks.onExtracted?.(extracted)
 
+    let slidesForPrompt: SlideExtractionResult | null = null
+    if (slidesTimelinePromise) {
+      slidesForPrompt = await slidesTimelinePromise
+    }
+
     const prompt = buildUrlPrompt({
       extracted,
       outputLanguage: flags.outputLanguage,
@@ -589,7 +556,7 @@ export async function runUrlFlow({
       promptOverride: flags.promptOverride ?? null,
       lengthInstruction: flags.lengthInstruction ?? null,
       languageInstruction: flags.languageInstruction ?? null,
-      slides: slidesExtracted ?? slidesPlanned,
+      slides: slidesForPrompt ?? slidesExtracted ?? null,
     })
 
     // Whisper transcription costs need to be folded into the finish line totals.
@@ -640,7 +607,7 @@ export async function runUrlFlow({
         prompt,
         effectiveMarkdownMode: markdown.effectiveMarkdownMode,
         transcriptionCostLabel,
-        slides: slidesExtracted ?? slidesPlanned,
+        slides: slidesExtracted ?? slidesForPrompt ?? null,
         slidesOutput,
       })
       return
@@ -661,7 +628,7 @@ export async function runUrlFlow({
       effectiveMarkdownMode: markdown.effectiveMarkdownMode,
       transcriptionCostLabel,
       onModelChosen,
-      slides: slidesExtracted ?? slidesPlanned,
+      slides: slidesExtracted ?? slidesForPrompt ?? null,
       slidesOutput,
     })
   } finally {

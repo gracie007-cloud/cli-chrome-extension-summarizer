@@ -1137,6 +1137,7 @@ function parseSlideSummariesFromMarkdown(markdown: string): Map<number, string> 
   if (slidesHeadingMatch?.index == null) return result
   const startAt = slidesHeadingMatch.index
   const slice = markdown.slice(startAt)
+  const slideLabelPattern = /^(?:\[)?slide\s+(\d+)(?:\])?(?:\s*[\u00b7:-]\s*.*)?$/i
 
   const lines = slice.split('\n')
   let currentIndex: number | null = null
@@ -1164,6 +1165,14 @@ function parseSlideSummariesFromMarkdown(markdown: string): Map<number, string> 
       currentIndex = index
       const rest = (match[2] ?? '').trim()
       if (rest) buffer.push(rest)
+      continue
+    }
+    const labelMatch = trimmed.match(slideLabelPattern)
+    if (labelMatch) {
+      flush()
+      const index = Number.parseInt(labelMatch[1] ?? '', 10)
+      if (!Number.isFinite(index) || index <= 0) continue
+      currentIndex = index
       continue
     }
     if (currentIndex == null) continue

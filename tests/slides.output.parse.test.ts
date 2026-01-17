@@ -20,4 +20,20 @@ Other section
     expect(map.get(1)).toBe('First summary line. More detail.')
     expect(map.get(3)).toBe('Third summary.')
   })
+
+  it('parses slide labels with timestamps', () => {
+    const markdown = `
+Intro paragraph.
+
+### Slides
+Slide 1 \u00b7 0:01
+First slide text.
+
+Slide 2 - 1:05
+Second slide text.
+`
+    const map = parseSlideSummariesFromMarkdown(markdown)
+    expect(map.get(1)).toBe('First slide text.')
+    expect(map.get(2)).toBe('Second slide text.')
+  })
 })

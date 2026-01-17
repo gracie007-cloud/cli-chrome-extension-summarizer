@@ -166,16 +166,33 @@ export function buildLinkSummaryPrompt({
     hasTranscriptTimestamps && !(slides && slides.count > 0)
       ? 'Add a "Key moments" section with 3-6 bullets (2-4 if the summary is short). Start each bullet with a [mm:ss] (or [hh:mm:ss]) timestamp from the transcript. Keep the rest of the summary readable and follow the normal formatting guidance; do not prepend timestamps outside the Key moments section. Do not invent timestamps or use ranges.'
       : ''
+  const slideMarkers =
+    slides && slides.count > 0
+      ? Array.from({ length: slides.count }, (_, index) => `[slide:${index + 1}]`).join(' ')
+      : ''
+  const slideTemplate =
+    slides && slides.count > 0
+      ? [
+          'Output template (copy and fill; keep markers on their own lines):',
+          'Intro paragraph.',
+          ...Array.from(
+            { length: slides.count },
+            (_, index) => `[slide:${index + 1}]\nText for this segment.`
+          ),
+        ].join('\n')
+      : ''
   const slideInstruction =
     slides && slides.count > 0
       ? [
           'Start with a short intro paragraph (1-3 sentences) before the first slide tag.',
           'Write a continuous narrative that covers the whole video; do not switch to a bullet list.',
           'Slides are provided as transcript excerpts tied to time spans between adjacent slides.',
-          `Insert each slide marker on its own line where that slide should appear: [slide:N] (N is the slide index).`,
-          `Use every slide index from 1 to ${slides.count} exactly once, in chronological order.`,
+          'Formatting is strict: insert each slide marker on its own line where that slide should appear.',
+          `Required markers (use each exactly once, in order): ${slideMarkers}`,
+          'Use the exact lowercase tag format [slide:N]. Do not write "Slide N" labels or a "### Slides" heading.',
+          slideTemplate,
           'Do not add a separate Slides section or list.',
-        ].join(' ')
+        ].join('\n')
       : ''
   const listGuidanceLine =
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.'
@@ -194,9 +211,9 @@ export function buildLinkSummaryPrompt({
     'Write in direct, factual language.',
     'Format the answer in Markdown and obey the length-specific formatting above.',
     listGuidanceLine,
+    slideInstruction,
     'Base everything strictly on the provided content and never invent details.',
     timestampInstruction,
-    slideInstruction,
     shareGuidance,
   ]
     .filter((line) => typeof line === 'string' && line.trim().length > 0)

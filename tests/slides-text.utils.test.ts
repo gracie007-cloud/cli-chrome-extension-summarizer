@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildTimestampUrl,
+  coerceSummaryWithSlides,
+  extractSlideMarkers,
   findSlidesSectionStart,
   formatOsc8Link,
   formatTimestamp,
@@ -34,6 +36,11 @@ describe('slides text helpers', () => {
     expect(splitSummaryFromSlides('Only summary').slidesSection).toBeNull()
   })
 
+  it('finds slides section from slide labels', () => {
+    const markdown = ['Intro', '', 'Slide 1 \u00b7 0:01', 'Text'].join('\n')
+    expect(findSlidesSectionStart(markdown)).not.toBeNull()
+  })
+
   it('parses slide summaries and ignores invalid entries', () => {
     const markdown = [
       '### Slides',
@@ -50,6 +57,36 @@ describe('slides text helpers', () => {
     expect(result.get(1)).toBe('First line continued line')
     expect(result.get(2)).toBe('Second line')
     expect(result.has(0)).toBe(false)
+  })
+
+  it('extracts slide markers from inline tags', () => {
+    const markers = extractSlideMarkers('[slide:1]\nText\n[slide:2] More')
+    expect(markers).toEqual([1, 2])
+  })
+
+  it('coerces summaries without markers into slide blocks', () => {
+    const markdown = [
+      '### Intro',
+      'Short intro sentence. Another sentence.',
+      '',
+      '### Slides',
+      'Slide 1 \u00b7 0:01',
+      'First slide text.',
+      '',
+      'Slide 2 \u00b7 0:02',
+      'Second slide text.',
+    ].join('\n')
+    const coerced = coerceSummaryWithSlides({
+      markdown,
+      slides: [
+        { index: 1, timestamp: 1 },
+        { index: 2, timestamp: 2 },
+      ],
+    })
+    expect(coerced).toContain('[slide:1]')
+    expect(coerced).toContain('[slide:2]')
+    expect(coerced).toContain('First slide text.')
+    expect(coerced).toContain('Second slide text.')
   })
 
   it('parses transcript timed text and sorts by timestamp', () => {

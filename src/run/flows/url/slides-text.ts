@@ -27,6 +27,7 @@ const SLIDE_WINDOW_SECONDS_MIN = 30
 const SLIDE_WINDOW_SECONDS_MAX = 180
 
 const SLIDE_TAG_PATTERN = /^\[slide:(\d+)\]\s*(.*)$/i
+const SLIDE_LABEL_PATTERN = /^(?:\[)?slide\s+(\d+)(?:\])?(?:\s*[\u00b7:-]\s*.*)?$/i
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 
@@ -34,7 +35,10 @@ export function findSlidesSectionStart(markdown: string): number | null {
   if (!markdown) return null
   const heading = markdown.match(/^#{1,3}\s+Slides\b.*$/im)
   const tag = markdown.match(/^\[slide:\d+\]/im)
-  const indexes = [heading?.index, tag?.index].filter((idx): idx is number => idx != null)
+  const label = markdown.match(/^\s*slide\s+\d+(?:\s*[\u00b7:-].*)?$/im)
+  const indexes = [heading?.index, tag?.index, label?.index].filter(
+    (idx): idx is number => idx != null
+  )
   if (indexes.length === 0) return null
   return Math.min(...indexes)
 }
@@ -84,12 +88,103 @@ export function parseSlideSummariesFromMarkdown(markdown: string): Map<number, s
       if (rest) buffer.push(rest)
       continue
     }
+    const label = trimmed.match(SLIDE_LABEL_PATTERN)
+    if (label) {
+      flush()
+      const index = Number.parseInt(label[1] ?? '', 10)
+      if (!Number.isFinite(index) || index <= 0) continue
+      currentIndex = index
+      continue
+    }
     if (currentIndex == null) continue
     if (!trimmed) continue
     buffer.push(trimmed)
   }
   flush()
   return result
+}
+
+export function extractSlideMarkers(markdown: string): number[] {
+  if (!markdown.trim()) return []
+  const indexes: number[] = []
+  const regex = /\[slide:(\d+)\]/gi
+  let match: RegExpExecArray | null = null
+  while ((match = regex.exec(markdown))) {
+    const index = Number.parseInt(match[1] ?? '', 10)
+    if (!Number.isFinite(index) || index <= 0) continue
+    indexes.push(index)
+  }
+  return indexes
+}
+
+function splitMarkdownParagraphs(markdown: string): string[] {
+  return markdown
+    .split(/\n\s*\n+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+}
+
+function pickIntroParagraph(markdown: string): string {
+  const paragraphs = splitMarkdownParagraphs(markdown)
+  if (paragraphs.length === 0) return ''
+  const firstNonHeading =
+    paragraphs.find((paragraph) => !/^#{1,6}\s+\S/.test(paragraph.trim())) ?? paragraphs[0]
+  if (!firstNonHeading) return ''
+  const sentences = firstNonHeading.match(/[^.!?]+[.!?]+|[^.!?]+$/g) ?? [firstNonHeading]
+  if (sentences.length <= 3) return firstNonHeading.trim()
+  return sentences.slice(0, 3).join(' ').trim()
+}
+
+export function coerceSummaryWithSlides({
+  markdown,
+  slides,
+}: {
+  markdown: string
+  slides: SlideTimelineEntry[]
+}): string {
+  if (!markdown.trim() || slides.length === 0) return markdown
+  const existingMarkers = extractSlideMarkers(markdown)
+  const hasSlidesHeading = /^#{1,3}\s+Slides\b/im.test(markdown)
+  if (existingMarkers.length > 0 && !hasSlidesHeading) return markdown
+
+  const { summary, slidesSection } = splitSummaryFromSlides(markdown)
+  const intro = pickIntroParagraph(summary)
+  const ordered = slides.slice().sort((a, b) => a.index - b.index)
+  const slideSummaries = slidesSection ? parseSlideSummariesFromMarkdown(markdown) : new Map()
+
+  if (slideSummaries.size > 0) {
+    const parts: string[] = []
+    if (intro) parts.push(intro)
+    for (const slide of ordered) {
+      const text = slideSummaries.get(slide.index) ?? ''
+      parts.push(text ? `[slide:${slide.index}]\n${text}` : `[slide:${slide.index}]`)
+    }
+    return parts.join('\n\n')
+  }
+
+  const paragraphs = splitMarkdownParagraphs(markdown)
+  if (paragraphs.length === 0) return markdown
+  const introParagraph = intro || paragraphs[0] || ''
+  const introIndex = paragraphs.indexOf(introParagraph)
+  const remaining =
+    introIndex >= 0 ? paragraphs.filter((_, index) => index !== introIndex) : paragraphs.slice(1)
+  const parts: string[] = []
+  if (introParagraph) parts.push(introParagraph.trim())
+  if (remaining.length === 0) {
+    for (const slide of ordered) {
+      parts.push(`[slide:${slide.index}]`)
+    }
+    return parts.join('\n\n')
+  }
+  const total = ordered.length
+  for (let i = 0; i < total; i += 1) {
+    const start = Math.round((i * remaining.length) / total)
+    const end = Math.round(((i + 1) * remaining.length) / total)
+    const segment = remaining.slice(start, end).join('\n\n').trim()
+    const slideIndex = ordered[i]?.index ?? i + 1
+    parts.push(segment ? `[slide:${slideIndex}]\n${segment}` : `[slide:${slideIndex}]`)
+  }
+  return parts.join('\n\n')
 }
 
 function parseTimestampSeconds(value: string): number | null {

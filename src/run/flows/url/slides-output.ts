@@ -308,6 +308,8 @@ export function createSlidesSummaryStreamHandler({
   let buffered = ''
   const renderedSlides = new Set<number>()
   let visible = ''
+  const slideTagRegex = /\[slide:(\d+)\]/i
+  const slideLabelRegex = /(^|\n)[\t ]*slide\s+(\d+)(?:\s*[\u00b7:-].*)?(?=\n|$)/i
 
   const handleMarkdownChunk = (nextVisible: string, prevVisible: string) => {
     if (!streamer) return
@@ -344,8 +346,20 @@ export function createSlidesSummaryStreamHandler({
 
   const flushBuffered = async ({ final }: { final: boolean }) => {
     while (buffered.length > 0) {
-      const match = buffered.match(/\[slide:(\d+)\]/i)
-      if (!match) {
+      const tagMatch = slideTagRegex.exec(buffered)
+      const labelMatch = slideLabelRegex.exec(buffered)
+      const nextMatch =
+        tagMatch && labelMatch
+          ? (tagMatch.index ?? 0) <= (labelMatch.index ?? 0)
+            ? { kind: 'tag' as const, match: tagMatch }
+            : { kind: 'label' as const, match: labelMatch }
+          : tagMatch
+            ? { kind: 'tag' as const, match: tagMatch }
+            : labelMatch
+              ? { kind: 'label' as const, match: labelMatch }
+              : null
+
+      if (!nextMatch) {
         if (final) {
           appendVisible(buffered)
           buffered = ''
@@ -363,10 +377,12 @@ export function createSlidesSummaryStreamHandler({
         buffered = buffered.slice(start)
         return
       }
-      const index = Number.parseInt(match[1] ?? '', 10)
-      const matchIndex = match.index ?? 0
+      const rawIndex =
+        nextMatch.kind === 'tag' ? nextMatch.match[1] : nextMatch.match[2] ?? nextMatch.match[1]
+      const index = Number.parseInt(rawIndex ?? '', 10)
+      const matchIndex = nextMatch.match.index ?? 0
       const before = buffered.slice(0, matchIndex)
-      const after = buffered.slice(matchIndex + match[0].length)
+      const after = buffered.slice(matchIndex + nextMatch.match[0].length)
       appendVisible(before)
       buffered = after
       if (Number.isFinite(index) && index > 0) {
