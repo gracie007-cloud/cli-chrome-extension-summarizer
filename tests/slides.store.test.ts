@@ -5,7 +5,6 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { resolveSlideSettings } from '../src/slides/settings.js'
-import type { SlideExtractionResult } from '../src/slides/types.js'
 import {
   buildSlidesDirId,
   readSlidesCacheIfValid,
@@ -14,6 +13,7 @@ import {
   serializeSlideImagePath,
   validateSlidesCache,
 } from '../src/slides/store.js'
+import type { SlideExtractionResult } from '../src/slides/types.js'
 
 describe('slides store', () => {
   it('serializes relative paths and resolves cached slides', async () => {
@@ -40,7 +40,12 @@ describe('slides store', () => {
       slidesDirId: buildSlidesDirId(slidesDir),
       sceneThreshold: settings.sceneThreshold,
       autoTuneThreshold: settings.autoTuneThreshold,
-      autoTune: { enabled: false, chosenThreshold: settings.sceneThreshold, confidence: 0, strategy: 'none' },
+      autoTune: {
+        enabled: false,
+        chosenThreshold: settings.sceneThreshold,
+        confidence: 0,
+        strategy: 'none',
+      },
       maxSlides: settings.maxSlides,
       minSlideDuration: settings.minDurationSeconds,
       ocrRequested: settings.ocr,
@@ -55,7 +60,11 @@ describe('slides store', () => {
       warnings: [],
     }
 
-    await fs.writeFile(path.join(slidesDir, 'slides.json'), JSON.stringify(payload, null, 2), 'utf8')
+    await fs.writeFile(
+      path.join(slidesDir, 'slides.json'),
+      JSON.stringify(payload, null, 2),
+      'utf8'
+    )
     const cached = await readSlidesCacheIfValid({ source, settings })
     expect(cached?.slides[0]?.imagePath).toBe(imagePath)
     expect(cached?.slidesDirId).toBe(buildSlidesDirId(slidesDir))
@@ -85,7 +94,12 @@ describe('slides store', () => {
       slidesDirId: buildSlidesDirId(otherDir),
       sceneThreshold: settings.sceneThreshold,
       autoTuneThreshold: settings.autoTuneThreshold,
-      autoTune: { enabled: false, chosenThreshold: settings.sceneThreshold, confidence: 0, strategy: 'none' },
+      autoTune: {
+        enabled: false,
+        chosenThreshold: settings.sceneThreshold,
+        confidence: 0,
+        strategy: 'none',
+      },
       maxSlides: settings.maxSlides,
       minSlideDuration: settings.minDurationSeconds,
       ocrRequested: settings.ocr,

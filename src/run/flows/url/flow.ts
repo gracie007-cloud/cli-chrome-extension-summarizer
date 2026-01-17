@@ -11,8 +11,8 @@ import { createFirecrawlScraper } from '../../../firecrawl.js'
 import {
   extractSlidesForSource,
   resolveSlideSource,
-  validateSlidesCache,
   type SlideExtractionResult,
+  validateSlidesCache,
 } from '../../../slides/index.js'
 import { createOscProgressController } from '../../../tty/osc-progress.js'
 import { startSpinner } from '../../../tty/spinner.js'
