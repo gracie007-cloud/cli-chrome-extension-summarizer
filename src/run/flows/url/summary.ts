@@ -28,10 +28,7 @@ import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js
 import type { ModelAttempt } from '../../types.js'
 import type { UrlExtractionUi } from './extract.js'
 import type { SlidesTerminalOutput } from './slides-output.js'
-import {
-  coerceSummaryWithSlides,
-  interleaveSlidesIntoTranscript,
-} from './slides-text.js'
+import { coerceSummaryWithSlides, interleaveSlidesIntoTranscript } from './slides-text.js'
 import type { UrlFlowContext } from './types.js'
 
 type SlidesResult = Awaited<
@@ -121,7 +118,7 @@ function buildSlidesPromptText({
     .sort((a, b) => a.timestamp - b.timestamp)
   if (slidesWithTimestamps.length === 0) return null
 
-  const totalBudget = MAX_SLIDE_TRANSCRIPT_CHARS_BY_PRESET[preset]
+  const totalBudget = Number(MAX_SLIDE_TRANSCRIPT_CHARS_BY_PRESET[preset])
   const perSlideBudget = Math.max(
     120,
     Math.floor(totalBudget / Math.max(1, slidesWithTimestamps.length))
@@ -627,7 +624,7 @@ export async function summarizeExtractedUrl({
           prompt: promptPayload,
           allowStreaming: flags.streamingEnabled && !flags.slides,
           onModelChosen: onModelChosen ?? null,
-          streamHandler: flags.slides ? null : slidesOutput?.streamHandler ?? null,
+          streamHandler: flags.slides ? null : (slidesOutput?.streamHandler ?? null),
         }),
     })
     summaryResult = attemptOutcome.result

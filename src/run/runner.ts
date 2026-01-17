@@ -791,7 +791,7 @@ export async function runCli(
         clearProgressIfCurrent,
         buildReport,
         estimateCostUsd,
-        onSlideChunk: null,
+        onSlideChunk: undefined,
         onSlidesDone: null,
       },
     }

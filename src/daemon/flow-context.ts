@@ -346,6 +346,7 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
       configPath,
       configModelLabel,
       slides: slides ?? null,
+      slidesDebug: false,
     },
     model: {
       requestedModel,
