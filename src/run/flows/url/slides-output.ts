@@ -1,5 +1,5 @@
-import { createMarkdownStreamer, render as renderMarkdownAnsi } from 'markdansi'
 import { promises as fs } from 'node:fs'
+import { createMarkdownStreamer, render as renderMarkdownAnsi } from 'markdansi'
 
 import type { ExtractedLinkContent } from '../../../content/index.js'
 import type { SummaryLength } from '../../../shared/contracts.js'
@@ -392,7 +392,7 @@ export function createSlidesSummaryStreamHandler({
         return
       }
       const rawIndex =
-        nextMatch.kind === 'tag' ? nextMatch.match[1] : nextMatch.match[2] ?? nextMatch.match[1]
+        nextMatch.kind === 'tag' ? nextMatch.match[1] : (nextMatch.match[2] ?? nextMatch.match[1])
       const index = Number.parseInt(rawIndex ?? '', 10)
       const matchIndex = nextMatch.match.index ?? 0
       const before = buffered.slice(0, matchIndex)

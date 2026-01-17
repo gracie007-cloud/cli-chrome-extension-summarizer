@@ -108,11 +108,12 @@ export function extractSlideMarkers(markdown: string): number[] {
   if (!markdown.trim()) return []
   const indexes: number[] = []
   const regex = /\[slide:(\d+)\]/gi
-  let match: RegExpExecArray | null = null
-  while ((match = regex.exec(markdown))) {
+  let match = regex.exec(markdown)
+  while (match) {
     const index = Number.parseInt(match[1] ?? '', 10)
     if (!Number.isFinite(index) || index <= 0) continue
     indexes.push(index)
+    match = regex.exec(markdown)
   }
   return indexes
 }
