@@ -1405,14 +1405,23 @@ function parseTranscriptTimedText(input: string | null | undefined): TranscriptS
 
 function getTranscriptTextForSlide(
   slide: { timestamp?: number | null },
+  nextSlide: { timestamp?: number | null } | null,
   budget: number,
   windowSeconds: number
 ): string {
   if (slide.timestamp == null || !Number.isFinite(slide.timestamp)) return ''
   if (slidesTranscriptSegments.length === 0) return ''
-  const center = Math.max(0, Math.floor(slide.timestamp))
-  const lower = Math.max(0, center - windowSeconds)
-  const upper = center + windowSeconds
+  const start = Math.max(0, Math.floor(slide.timestamp))
+  const leadIn = Math.min(6, Math.floor(windowSeconds * 0.2))
+  const lower = Math.max(0, start - leadIn)
+  let upper = start + windowSeconds
+  if (nextSlide?.timestamp != null && Number.isFinite(nextSlide.timestamp)) {
+    const next = Math.max(start, Math.floor(nextSlide.timestamp))
+    if (next > start) {
+      upper = Math.min(upper, next)
+    }
+  }
+  if (upper < lower) return ''
   const parts: string[] = []
   for (const segment of slidesTranscriptSegments) {
     if (segment.startSeconds < lower) continue
@@ -1440,7 +1449,10 @@ function rebuildSlideDescriptions() {
     slidesEnabledValue &&
     effectiveInputMode === 'video' &&
     (panelState.phase === 'connecting' || panelState.phase === 'streaming')
-  for (const slide of panelState.slides.slides) {
+  const slides = panelState.slides.slides
+  for (let i = 0; i < slides.length; i += 1) {
+    const slide = slides[i]
+    const nextSlide = slides[i + 1] ?? null
     if (slidesTextMode === 'ocr') {
       slideDescriptions.set(slide.index, getOcrTextForSlide(slide, budget))
       continue
@@ -1453,7 +1465,12 @@ function rebuildSlideDescriptions() {
       slideDescriptions.set(slide.index, '')
       continue
     }
-    slideDescriptions.set(slide.index, getTranscriptTextForSlide(slide, budget, windowSeconds))
+    const transcriptText = getTranscriptTextForSlide(slide, nextSlide, budget, windowSeconds)
+    if (!transcriptText) {
+      slideDescriptions.set(slide.index, getOcrTextForSlide(slide, budget))
+      continue
+    }
+    slideDescriptions.set(slide.index, transcriptText)
   }
 }
 
@@ -1829,12 +1846,12 @@ function renderSlideGallery(container: HTMLElement) {
     const idx = slide.index
     let item = existingItems.get(idx)
     if (!item) {
-      item = document.createElement('article')
+      item = document.createElement('button')
+      item.type = 'button'
       item.className = 'slideGallery__item'
       item.dataset.slideIndex = String(idx)
 
-      const media = document.createElement('button')
-      media.type = 'button'
+      const media = document.createElement('div')
       media.className = 'slideGallery__media'
 
       const thumb = document.createElement('div')
@@ -1858,7 +1875,7 @@ function renderSlideGallery(container: HTMLElement) {
       existingItems.set(idx, item)
     }
 
-    const media = item.querySelector<HTMLButtonElement>('.slideGallery__media')
+    const media = item.querySelector<HTMLDivElement>('.slideGallery__media')
     const img = item.querySelector<HTMLImageElement>('img.slideInline__thumbImage')
     const thumb = item.querySelector<HTMLDivElement>('.slideGallery__thumb')
     const meta = item.querySelector<HTMLDivElement>('.slideGallery__meta')
@@ -1876,7 +1893,7 @@ function renderSlideGallery(container: HTMLElement) {
     meta.textContent = timestamp ? `Slide ${idx} · ${timestamp}` : `Slide ${idx}`
     text.textContent = slideDescriptions.get(idx) ?? ''
 
-    media.onclick = () => {
+    item.onclick = () => {
       seekToSlideTimestamp(slide.timestamp)
     }
     list.appendChild(item)

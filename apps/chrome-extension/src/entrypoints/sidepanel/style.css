@@ -2120,11 +2120,17 @@ button.setup__pill.isActive {
 }
 
 .slideGallery__item {
+  appearance: none;
   border: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
   border-radius: 14px;
   overflow: hidden;
   background: color-mix(in srgb, var(--panel) 70%, transparent);
   display: grid;
+  padding: 0;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .slideGallery__media {
@@ -2142,9 +2148,9 @@ button.setup__pill.isActive {
 }
 
 .slideGallery__body {
-  padding: 10px 12px 12px;
+  padding: 14px 14px 16px;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .slideGallery__meta {
