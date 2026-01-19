@@ -61,13 +61,13 @@ export function buildFileSummaryPrompt({
     'Summarize the attached file.',
     'Be factual and do not invent details.',
     shouldIgnoreSponsors
-      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads). Do not mention them or that you skipped/ignored them.'
+      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention them or that you skipped/ignored them.'
       : '',
     directive.guidance,
     directive.formatting,
     'Format the answer in Markdown.',
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.',
-    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics (use underscore or asterisk markers). If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
+    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics (use underscore or asterisk markers). If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized; avoid quotation marks for single words or emphasis. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
     'Do not use emojis.',
     presetLengthLine,
     maxCharactersLine,
@@ -147,13 +147,13 @@ export function buildFileTextSummaryPrompt({
     'Summarize the file content below.',
     'Be factual and do not invent details.',
     shouldIgnoreSponsors
-      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads). Do not mention them or that you skipped/ignored them.'
+      ? 'Ignore sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript. Do not mention them or that you skipped/ignored them.'
       : '',
     directive.guidance,
     directive.formatting,
     'Format the answer in Markdown.',
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.',
-    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics (use underscore or asterisk markers). If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
+    'When there is a standout line, include 1-2 short direct quotes (max 25 words each) in quotation marks and Markdown italics (use underscore or asterisk markers). If you cannot italicize a quote, omit it. Do not use quotation marks unless the quoted text is italicized; avoid quotation marks for single words or emphasis. Never quote ads, sponsors, or boilerplate, and never mention them or that you skipped/ignored them.',
     'Do not use emojis.',
     presetLengthLine,
     maxCharactersLine,
