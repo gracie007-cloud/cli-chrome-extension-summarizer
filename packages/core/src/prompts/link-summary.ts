@@ -204,6 +204,7 @@ export function buildLinkSummaryPrompt({
       : ''
 
   const baseInstructions = [
+    'Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).',
     audienceLine,
     sponsorInstruction,
     directive.guidance,

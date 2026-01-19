@@ -57,6 +57,7 @@ export function buildFileSummaryPrompt({
   ].filter(Boolean)
 
   const baseInstructions = [
+    'Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).',
     'You summarize files for curious users.',
     'Summarize the attached file.',
     'Be factual and do not invent details.',
@@ -144,6 +145,7 @@ export function buildFileTextSummaryPrompt({
   ].filter(Boolean)
 
   const baseInstructions = [
+    'Hard rules: never mention sponsor/ads; any quotation marks must be wrapped in Markdown italics (underscore-wrapped quotes).',
     'You summarize files for curious users.',
     'Summarize the file content below.',
     'Be factual and do not invent details.',
