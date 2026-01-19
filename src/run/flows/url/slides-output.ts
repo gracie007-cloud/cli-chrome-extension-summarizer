@@ -260,6 +260,11 @@ export function createSlidesTerminalOutput({
     restoreProgressAfterStdout,
     renderSlide,
     getSlideIndexOrder: () => state.getOrder(),
+    debugWrite:
+      io.envForRun.SUMMARIZE_DEBUG_SLIDE_MARKERS &&
+      io.envForRun.SUMMARIZE_DEBUG_SLIDE_MARKERS !== '0'
+        ? (text: string) => io.stderr.write(text)
+        : null,
   })
 
   const renderFromText = async (text: string) => {
@@ -286,6 +291,7 @@ export function createSlidesSummaryStreamHandler({
   restoreProgressAfterStdout,
   renderSlide,
   getSlideIndexOrder,
+  debugWrite,
 }: {
   stdout: NodeJS.WritableStream
   env: Record<string, string | undefined>
@@ -296,6 +302,7 @@ export function createSlidesSummaryStreamHandler({
   restoreProgressAfterStdout?: (() => void) | null
   renderSlide: (index: number) => Promise<void>
   getSlideIndexOrder: () => number[]
+  debugWrite?: ((text: string) => void) | null
 }): SummaryStreamHandler {
   const shouldRenderMarkdown = !plain && isRichTty(stdout)
   const outputGate = !shouldRenderMarkdown
@@ -324,8 +331,9 @@ export function createSlidesSummaryStreamHandler({
   let buffered = ''
   const renderedSlides = new Set<number>()
   let visible = ''
-  const slideTagRegex = /\[\s*slide\s*:\s*(\d+)\s*\]/i
+  const slideTagRegex = /\[[^\]]*slide[^\d\]]*(\d+)[^\]]*\]/i
   const slideLabelRegex = /(^|\n)[\t ]*slide\s+(\d+)(?:\s*[\u00b7:-].*)?(?=\n|$)/i
+  const slideStripRegex = /\[[^\]]*slide[^\]]*\]/gi
 
   const handleMarkdownChunk = (nextVisible: string, prevVisible: string) => {
     if (!streamer) return
@@ -345,8 +353,10 @@ export function createSlidesSummaryStreamHandler({
 
   const appendVisible = (segment: string) => {
     if (!segment) return
+    const sanitized = segment.replace(slideStripRegex, '')
+    if (!sanitized) return
     const prevVisible = visible
-    visible += segment
+    visible += sanitized
     if (outputGate) {
       outputGate.handleChunk(visible, prevVisible)
       return
@@ -364,6 +374,13 @@ export function createSlidesSummaryStreamHandler({
     while (buffered.length > 0) {
       const tagMatch = slideTagRegex.exec(buffered)
       const labelMatch = slideLabelRegex.exec(buffered)
+      const lower = buffered.toLowerCase()
+      const fallbackStart = lower.indexOf('[slide')
+      const fallbackEnd = fallbackStart >= 0 ? buffered.indexOf(']', fallbackStart) : -1
+      const fallbackMatch =
+        fallbackStart >= 0 && fallbackEnd > fallbackStart
+          ? { start: fallbackStart, end: fallbackEnd }
+          : null
       const nextMatch =
         tagMatch && labelMatch
           ? (tagMatch.index ?? 0) <= (labelMatch.index ?? 0)
@@ -373,7 +390,9 @@ export function createSlidesSummaryStreamHandler({
             ? { kind: 'tag' as const, match: tagMatch }
             : labelMatch
               ? { kind: 'label' as const, match: labelMatch }
-              : null
+              : fallbackMatch
+                ? { kind: 'fallback' as const, match: fallbackMatch }
+                : null
 
       if (!nextMatch) {
         if (final) {
@@ -381,8 +400,16 @@ export function createSlidesSummaryStreamHandler({
           buffered = ''
           return
         }
-        const lower = buffered.toLowerCase()
-        const start = lower.lastIndexOf('[slide:')
+        let start = lower.lastIndexOf('[slide')
+        if (start === -1) {
+          const bracket = lower.lastIndexOf('[')
+          if (bracket !== -1) {
+            const tail = lower.slice(bracket + 1).replace(/\s+/g, '')
+            if (tail === '' || 'slide'.startsWith(tail)) {
+              start = bracket
+            }
+          }
+        }
         if (start === -1) {
           appendVisible(buffered)
           buffered = ''
@@ -393,16 +420,33 @@ export function createSlidesSummaryStreamHandler({
         buffered = buffered.slice(start)
         return
       }
-      const rawIndex =
-        nextMatch.kind === 'tag' ? nextMatch.match[1] : (nextMatch.match[2] ?? nextMatch.match[1])
-      const index = Number.parseInt(rawIndex ?? '', 10)
-      const matchIndex = nextMatch.match.index ?? 0
+      const matchIndex =
+        nextMatch.kind === 'fallback' ? nextMatch.match.start : (nextMatch.match.index ?? 0)
+      const matchLength =
+        nextMatch.kind === 'fallback'
+          ? nextMatch.match.end - nextMatch.match.start + 1
+          : nextMatch.match[0].length
+      const rawTag = buffered.slice(matchIndex, matchIndex + matchLength)
       const before = buffered.slice(0, matchIndex)
-      const after = buffered.slice(matchIndex + nextMatch.match[0].length)
+      const after = buffered.slice(matchIndex + matchLength)
       appendVisible(before)
       buffered = after
-      if (Number.isFinite(index) && index > 0) {
-        await renderSlideBlock(index)
+      let index: number | null = null
+      if (nextMatch.kind === 'fallback') {
+        const digitMatch = rawTag.match(/(\d+)/)
+        index = digitMatch ? Number.parseInt(digitMatch[1] ?? '', 10) : null
+      } else {
+        const rawIndex =
+          nextMatch.kind === 'tag'
+            ? nextMatch.match[1]
+            : (nextMatch.match[2] ?? nextMatch.match[1])
+        index = Number.parseInt(rawIndex ?? '', 10)
+      }
+      if (debugWrite) {
+        debugWrite(`slides marker: ${nextMatch.kind} raw=${JSON.stringify(rawTag)} index=${index ?? 'null'}\n`)
+      }
+      if (Number.isFinite(index) && (index ?? 0) > 0) {
+        await renderSlideBlock(index as number)
       }
     }
   }

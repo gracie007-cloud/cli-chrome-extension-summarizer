@@ -311,7 +311,7 @@ export async function runUrlFlow({
       extracted,
       slides: null,
       enabled: slidesOutputEnabled,
-      outputMode: 'line',
+      outputMode: 'delta',
       clearProgressForStdout: hooks.clearProgressForStdout,
       restoreProgressAfterStdout: hooks.restoreProgressAfterStdout ?? null,
       onProgressText: flags.progressEnabled ? (text) => spinner.setText(text) : null,
