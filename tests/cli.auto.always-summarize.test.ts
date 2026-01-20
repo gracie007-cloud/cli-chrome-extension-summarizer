@@ -94,22 +94,12 @@ describe('--model auto', () => {
     })
 
     const out = collectStdout()
-    await runCli(
-      [
-        '--model',
-        'auto',
-        '--force-summary',
-        '--timeout',
-        '2s',
-        'https://example.com',
-      ],
-      {
-        env: { OPENAI_API_KEY: 'test' },
-        fetch: fetchMock as unknown as typeof fetch,
-        stdout: out.stdout,
-        stderr: silentStderr,
-      }
-    )
+    await runCli(['--model', 'auto', '--force-summary', '--timeout', '2s', 'https://example.com'], {
+      env: { OPENAI_API_KEY: 'test' },
+      fetch: fetchMock as unknown as typeof fetch,
+      stdout: out.stdout,
+      stderr: silentStderr,
+    })
 
     expect(out.getText()).toMatch(/summary/i)
     expect(mocks.completeSimple).toHaveBeenCalled()

@@ -63,10 +63,7 @@ function shouldBypassShortContentSummary({
 }): boolean {
   if (ctx.forceSummary) return false
   if (!textContent?.content) return false
-  const targetCharacters = resolveTargetCharacters(
-    ctx.lengthArg,
-    SUMMARY_LENGTH_TARGET_CHARACTERS
-  )
+  const targetCharacters = resolveTargetCharacters(ctx.lengthArg, SUMMARY_LENGTH_TARGET_CHARACTERS)
   if (!Number.isFinite(targetCharacters) || targetCharacters <= 0) return false
   return textContent.content.length <= targetCharacters
 }

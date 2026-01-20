@@ -24,12 +24,12 @@ import {
   buildLengthPartsForFinishLine,
   writeFinishLine,
 } from '../../finish-line.js'
+import { resolveTargetCharacters } from '../../format.js'
 import { writeVerbose } from '../../logging.js'
 import { prepareMarkdownForTerminal } from '../../markdown.js'
 import { runModelAttempts } from '../../model-attempts.js'
 import { buildOpenRouterNoAllowedProvidersMessage } from '../../openrouter.js'
 import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js'
-import { resolveTargetCharacters } from '../../format.js'
 import type { ModelAttempt } from '../../types.js'
 import type { UrlExtractionUi } from './extract.js'
 import type { SlidesTerminalOutput } from './slides-output.js'
@@ -320,7 +320,9 @@ async function outputSummaryFromExtractedContent({
   io.stdout.write(`${extracted.content}\n`)
   hooks.restoreProgressAfterStdout?.()
   if (extractionUi.footerParts.length > 0) {
-    const footer = footerLabel ? [...extractionUi.footerParts, footerLabel] : extractionUi.footerParts
+    const footer = footerLabel
+      ? [...extractionUi.footerParts, footerLabel]
+      : extractionUi.footerParts
     hooks.writeViaFooter(footer)
   }
   if (verboseMessage && flags.verbose) {

@@ -9,11 +9,11 @@ import {
   parseArtifact,
   upsertArtifact,
 } from '../automation/artifacts-store'
-import { logExtensionEvent } from '../lib/extension-logs'
 import { readAgentResponse } from '../lib/agent-response'
 import { buildChatPageContent } from '../lib/chat-context'
 import { buildDaemonRequestBody, buildSummarizeRequestBody } from '../lib/daemon-payload'
 import { createDaemonRecovery, isDaemonUnreachableError } from '../lib/daemon-recovery'
+import { logExtensionEvent } from '../lib/extension-logs'
 import { loadSettings, patchSettings } from '../lib/settings'
 import { parseSseStream } from '../lib/sse'
 
@@ -1054,7 +1054,9 @@ export default defineBackground(() => {
     const logPanel = (event: string, detail?: Record<string, unknown>) => {
       if (!settings.extendedLogging) return
       const payload = detail ? { event, windowId: session.windowId, ...detail } : { event }
-      const detailPayload = detail ? { windowId: session.windowId, ...detail } : { windowId: session.windowId }
+      const detailPayload = detail
+        ? { windowId: session.windowId, ...detail }
+        : { windowId: session.windowId }
       logExtensionEvent({
         event,
         detail: detailPayload,

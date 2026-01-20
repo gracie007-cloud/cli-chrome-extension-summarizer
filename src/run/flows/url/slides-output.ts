@@ -437,13 +437,13 @@ export function createSlidesSummaryStreamHandler({
         index = digitMatch ? Number.parseInt(digitMatch[1] ?? '', 10) : null
       } else {
         const rawIndex =
-          nextMatch.kind === 'tag'
-            ? nextMatch.match[1]
-            : (nextMatch.match[2] ?? nextMatch.match[1])
+          nextMatch.kind === 'tag' ? nextMatch.match[1] : (nextMatch.match[2] ?? nextMatch.match[1])
         index = Number.parseInt(rawIndex ?? '', 10)
       }
       if (debugWrite) {
-        debugWrite(`slides marker: ${nextMatch.kind} raw=${JSON.stringify(rawTag)} index=${index ?? 'null'}\n`)
+        debugWrite(
+          `slides marker: ${nextMatch.kind} raw=${JSON.stringify(rawTag)} index=${index ?? 'null'}\n`
+        )
       }
       if (Number.isFinite(index) && (index ?? 0) > 0) {
         await renderSlideBlock(index as number)
