@@ -345,6 +345,7 @@ export function createDaemonUrlFlowContext(args: DaemonUrlFlowContextArgs): UrlF
       verbose: false,
       verboseColor: false,
       progressEnabled: false,
+      streamMode: 'on',
       streamingEnabled: true,
       plain: true,
       configPath,

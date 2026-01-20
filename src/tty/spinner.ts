@@ -9,7 +9,7 @@ export function startSpinner({
   text: string
   enabled: boolean
   stream: NodeJS.WritableStream
-  color?: string
+  color?: Parameters<typeof ora>[0]['color']
 }): {
   stop: () => void
   clear: () => void
