@@ -39,7 +39,7 @@ export function createTranscriptProgressRenderer({
     totalBytes: null,
     startedAtMs: null,
     whisperProviderHint: 'unknown',
-    mediaKind: 'unknown',
+    mediaKind: 'audio',
     whisperModelId: null,
     whisperProcessedSeconds: null,
     whisperTotalSeconds: null,
@@ -95,15 +95,14 @@ export function createTranscriptProgressRenderer({
         : ''
     const svc =
       state.service === 'podcast' ? 'podcast' : state.service === 'youtube' ? 'youtube' : 'media'
-    const kindLabel = state.mediaKind === 'audio' ? 'audio' : 'media'
-    const kindDetail =
-      state.mediaKind === 'video' ? 'video' : state.mediaKind === 'audio' ? 'audio' : null
+    const kindLabel = state.mediaKind === 'video' ? 'media' : 'audio'
+    const kindDetail = state.mediaKind === 'video' ? 'video' : null
     const svcLabel = kindDetail ? `${svc}, ${kindDetail}` : svc
     return `Downloading ${kindLabel} (${svcLabel}, ${downloaded}${total}, ${elapsed}${rate})…`
   }
 
   const downloadTitle = () =>
-    state.mediaKind === 'audio' ? 'Downloading audio' : 'Downloading media'
+    state.mediaKind === 'video' ? 'Downloading media' : 'Downloading audio'
 
   const formatProvider = (hint: typeof state.whisperProviderHint) => {
     if (hint === 'cpp') return 'Whisper.cpp'
@@ -150,7 +149,7 @@ export function createTranscriptProgressRenderer({
       if (event.kind === 'transcript-media-download-start') {
         state.phase = 'download'
         state.service = event.service
-        state.mediaKind = event.mediaKind ?? 'unknown'
+        state.mediaKind = event.mediaKind ?? state.mediaKind
         state.downloadedBytes = 0
         state.totalBytes = event.totalBytes
         state.startedAtMs = Date.now()
