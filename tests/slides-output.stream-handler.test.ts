@@ -76,6 +76,32 @@ describe('slides summary stream handler', () => {
     expect(renderedSlides).toEqual([1])
   })
 
+  it('injects slide title lines when metadata is available', async () => {
+    const { stream, chunks } = makeStdout(false)
+    const titles: Array<string | null> = []
+    const handler = createSlidesSummaryStreamHandler({
+      stdout: stream,
+      env: {},
+      envForRun: {},
+      plain: true,
+      outputMode: 'line',
+      clearProgressForStdout: () => {},
+      renderSlide: async (_index, title) => {
+        titles.push(title ?? null)
+      },
+      getSlideIndexOrder: () => [1],
+      getSlideMeta: () => ({ total: 1, timestamp: 4 }),
+    })
+
+    const payload = 'Intro line\n\n[slide:1]\nGraphene is strong and conductive.'
+    await handler.onChunk({ streamed: payload, prevStreamed: '', appended: payload })
+    await handler.onDone?.(payload)
+
+    const output = chunks.join('')
+    expect(output).toContain('Graphene is strong and conductive.')
+    expect(titles[0]).toContain('Graphene is strong and conductive')
+  })
+
   it('handles delta output mode and appends a newline on finalize', async () => {
     const { stream, chunks } = makeStdout(false)
     const handler = createSlidesSummaryStreamHandler({

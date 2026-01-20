@@ -48,7 +48,7 @@ const hasSlideLabel = (line: string, index: number, count: number): boolean => {
 
 const stripQuotes = (value: string): string => value.replace(/[“”"]/g, '')
 
-const deriveSlideTitle = (text: string): string => {
+export const deriveSlideTitle = (text: string): string => {
   const cleaned = stripQuotes(text)
     .replace(/\[[^\]]*slide[^\]]*\]/gi, ' ')
     .replace(/\s+/g, ' ')
@@ -66,7 +66,41 @@ const deriveSlideTitle = (text: string): string => {
   return trimmed || truncated.trim()
 }
 
-const ensureSlideTitleLine = ({
+export const splitSlideTitleFromText = ({
+  text,
+  slideIndex,
+  total,
+}: {
+  text: string
+  slideIndex: number
+  total: number
+}): { title: string | null; body: string } => {
+  const trimmed = text.trim()
+  if (!trimmed) return { title: null, body: '' }
+  const lines = trimmed
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+  if (lines.length === 0) return { title: null, body: '' }
+  const firstLine = lines[0] ?? ''
+  const match = firstLine.match(
+    /^(.*?)\s*[-–—]\s*Slide\s+(\d+)(?:\s*\/\s*(\d+))?(?:\s*[-–—]\s*[\d:]+)?\s*$/i
+  )
+  if (match) {
+    const index = Number.parseInt(match[2] ?? '', 10)
+    const count = match[3] ? Number.parseInt(match[3], 10) : null
+    const indexOk = Number.isFinite(index) && index === slideIndex
+    const countOk = count == null || !Number.isFinite(count) || count === total || total <= 0
+    if (indexOk && countOk) {
+      const title = collapseLineWhitespace(match[1] ?? '').trim()
+      const body = lines.slice(1).join('\n').trim()
+      return { title: title || null, body }
+    }
+  }
+  return { title: null, body: trimmed }
+}
+
+export const ensureSlideTitleLine = ({
   text,
   slide,
   total,

@@ -199,15 +199,15 @@ export function buildLinkSummaryPrompt({
   const listGuidanceLine =
     'Use short paragraphs; use bullet lists only when they improve scanability; avoid rigid templates.'
   const quoteGuidanceLine =
-    'If a standout line is present, include 1-2 short exact excerpts (max 25 words each) formatted as Markdown italics using single asterisks only. Do not use quotation marks of any kind (straight or curly). Remove any quotation marks from excerpts. If you cannot format an italic excerpt, omit it. Never include ad/sponsor/boilerplate excerpts and do not mention them.'
+    'Include 1-2 short exact excerpts (max 25 words each) formatted as Markdown italics using single asterisks when there is a strong, non-sponsor line. Use straight quotation marks (no curly) as needed. If no suitable line exists, omit excerpts. Never include ad/sponsor/boilerplate excerpts and do not mention them.'
   const sponsorInstruction =
     hasTranscript || (slides && slides.count > 0)
       ? 'Omit sponsor messages, ads, promos, and calls-to-action (including podcast ad reads), even if they appear in the transcript or slide timeline. Do not mention or acknowledge them, and do not say you skipped or ignored anything. Avoid sponsor/ad/promo language, brand names like Squarespace, or CTA phrases like discount code. Treat them as if they do not exist. If a slide segment is purely sponsor/ad content, leave that slide marker with no text.'
       : ''
 
   const baseInstructions = [
-    'Hard rules: never mention sponsor/ads; never output quotation marks of any kind (straight or curly), even for titles.',
-    'Never include quotation marks in the output. Apostrophes in contractions are OK. If a title or excerpt would normally use quotes, remove them and optionally italicize the text instead.',
+    'Hard rules: never mention sponsor/ads; use straight quotation marks only (no curly quotes).',
+    'Apostrophes in contractions are OK.',
     audienceLine,
     sponsorInstruction,
     directive.guidance,
@@ -225,7 +225,7 @@ export function buildLinkSummaryPrompt({
     quoteGuidanceLine,
     slideInstruction,
     'Base everything strictly on the provided content and never invent details.',
-    'Final check: remove any sponsor/ad references or mentions of skipping/ignoring content. Remove any quotation marks. Ensure standout excerpts are italicized; otherwise omit them.',
+    'Final check: remove any sponsor/ad references or mentions of skipping/ignoring content. Ensure excerpts (if any) are italicized and use only straight quotes.',
     timestampInstruction,
     shareGuidance,
   ]

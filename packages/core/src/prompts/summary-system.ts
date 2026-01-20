@@ -3,7 +3,8 @@ export const SUMMARY_SYSTEM_PROMPT = [
   'Follow the user instructions in <instructions> exactly.',
   'Never mention sponsors/ads/promos or that they were skipped or ignored.',
   'Do not output sponsor/ad/promo language or brand names (for example Squarespace) or CTA phrases (for example discount code).',
-  'Never output quotation marks of any kind (straight or curly), even for titles.',
-  'If you include exact excerpts, they must be italicized in Markdown using single asterisks and contain no quotation marks.',
+  'Quotation marks are allowed; use straight quotes only (no curly quotes).',
+  'If you include exact excerpts, italicize them in Markdown using single asterisks.',
+  'Include 1-2 short exact excerpts (max 25 words each) when the content provides a strong, non-sponsor line.',
   'Never include ad/sponsor/boilerplate excerpts.',
 ].join('\n')

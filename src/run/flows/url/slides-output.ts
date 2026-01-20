@@ -16,8 +16,10 @@ import type { SummaryStreamHandler } from '../../summary-engine.js'
 import { isRichTty, markdownRenderWidth, supportsColor } from '../../terminal.js'
 import {
   buildTimestampUrl,
+  deriveSlideTitle,
   formatOsc8Link,
   formatTimestamp,
+  splitSlideTitleFromText,
   type SlideTimelineEntry,
 } from './slides-text.js'
 
@@ -209,7 +211,7 @@ export function createSlidesTerminalOutput({
   }
 
   let renderedCount = 0
-  const renderSlide = async (index: number) => {
+  const renderSlide = async (index: number, title?: string | null) => {
     if (index <= 0) return
     const total = state.getOrder().length || (slides?.slides.length ?? 0)
     const slide = state.getSlide(index)
@@ -231,7 +233,13 @@ export function createSlidesTerminalOutput({
       ? formatOsc8Link(timestampLabel, timestampUrl, isRichTty(io.stdout) && !flags.plain)
       : null
     const slideLabelBase = total > 0 ? `Slide ${index}/${total}` : `Slide ${index}`
-    const rawLabel = timeLink ? `${slideLabelBase} · ${timeLink}` : slideLabelBase
+    const cleanTitle = title?.replace(/\s+/g, ' ').trim()
+    const titleMax = 80
+    const shortTitle =
+      cleanTitle && cleanTitle.length > titleMax
+        ? `${cleanTitle.slice(0, titleMax - 3).trimEnd()}...`
+        : cleanTitle
+    const rawLabel = [slideLabelBase, timeLink, shortTitle].filter(Boolean).join(' · ')
     const label = labelTheme.dim(rawLabel)
 
     clearProgressForStdout()
@@ -270,6 +278,15 @@ export function createSlidesTerminalOutput({
     restoreProgressAfterStdout,
     renderSlide,
     getSlideIndexOrder: () => state.getOrder(),
+    getSlideMeta: (index) => {
+      const total = state.getOrder().length || (slides?.slides.length ?? 0)
+      const slide = state.getSlide(index)
+      const timestamp =
+        typeof slide?.timestamp === 'number' && Number.isFinite(slide.timestamp)
+          ? slide.timestamp
+          : null
+      return { total, timestamp }
+    },
     debugWrite:
       io.envForRun.SUMMARIZE_DEBUG_SLIDE_MARKERS &&
       io.envForRun.SUMMARIZE_DEBUG_SLIDE_MARKERS !== '0'
@@ -301,6 +318,7 @@ export function createSlidesSummaryStreamHandler({
   restoreProgressAfterStdout,
   renderSlide,
   getSlideIndexOrder,
+  getSlideMeta,
   debugWrite,
 }: {
   stdout: NodeJS.WritableStream
@@ -310,8 +328,9 @@ export function createSlidesSummaryStreamHandler({
   outputMode: StreamOutputMode
   clearProgressForStdout: () => void
   restoreProgressAfterStdout?: (() => void) | null
-  renderSlide: (index: number) => Promise<void>
+  renderSlide: (index: number, title?: string | null) => Promise<void>
   getSlideIndexOrder: () => number[]
+  getSlideMeta?: ((index: number) => { total: number; timestamp: number | null }) | null
   debugWrite?: ((text: string) => void) | null
 }): SummaryStreamHandler {
   const shouldRenderMarkdown = !plain && isRichTty(stdout)
@@ -341,6 +360,7 @@ export function createSlidesSummaryStreamHandler({
   let buffered = ''
   const renderedSlides = new Set<number>()
   let visible = ''
+  let pendingSlide: { index: number; buffer: string } | null = null
   const slideTagRegex = /\[[^\]]*slide[^\d\]]*(\d+)[^\]]*\]/i
   const slideLabelRegex = /(^|\n)[\t ]*slide\s+(\d+)(?:\s*[\u00b7:-].*)?(?=\n|$)/i
   const slideStripRegex = /\[[^\]]*slide[^\]]*\]/gi
@@ -361,7 +381,7 @@ export function createSlidesSummaryStreamHandler({
     restoreProgressAfterStdout?.()
   }
 
-  const appendVisible = (segment: string) => {
+  const pushVisible = (segment: string) => {
     if (!segment) return
     const sanitized = segment.replace(slideStripRegex, '')
     if (!sanitized) return
@@ -374,10 +394,67 @@ export function createSlidesSummaryStreamHandler({
     handleMarkdownChunk(visible, prevVisible)
   }
 
-  const renderSlideBlock = async (index: number) => {
+  const resolveSlideTitle = (text: string, index: number) => {
+    const meta = getSlideMeta?.(index)
+    const total = meta?.total ?? getSlideIndexOrder().length
+    const parsed = splitSlideTitleFromText({
+      text,
+      slideIndex: index,
+      total,
+    })
+    if (parsed.title) {
+      return { title: parsed.title, body: parsed.body }
+    }
+    const derived = deriveSlideTitle(parsed.body || text)
+    return { title: derived, body: parsed.body || text }
+  }
+
+  const shouldResolveTitle = (text: string, force: boolean) => {
+    if (!text.trim()) return false
+    if (force) return true
+    const wordCount = text.trim().split(/\s+/).filter(Boolean).length
+    const hasEnough = text.trim().length >= 24 || wordCount >= 4
+    if (!hasEnough) return false
+    if (text.includes('\n')) return true
+    if (text.length >= 140) return true
+    return /[.!?]/.test(text)
+  }
+
+  const flushPendingSlide = async (force: boolean) => {
+    if (!pendingSlide) return
+    const text = pendingSlide.buffer
+    if (!text.trim()) {
+      if (force) {
+        const index = pendingSlide.index
+        pendingSlide = null
+        await renderSlideBlock(index, null)
+      }
+      return
+    }
+    if (!shouldResolveTitle(text, force)) return
+    const index = pendingSlide.index
+    const { title, body } = resolveSlideTitle(text, index)
+    pendingSlide = null
+    await renderSlideBlock(index, title)
+    if (body.trim()) pushVisible(body)
+  }
+
+  const appendVisible = async (segment: string) => {
+    if (!segment) return
+    const sanitized = segment.replace(slideStripRegex, '')
+    if (!sanitized) return
+    if (pendingSlide) {
+      pendingSlide.buffer += sanitized
+      await flushPendingSlide(false)
+      return
+    }
+    pushVisible(sanitized)
+  }
+
+  const renderSlideBlock = async (index: number, title?: string | null) => {
     if (renderedSlides.has(index)) return
     renderedSlides.add(index)
-    await renderSlide(index)
+    await renderSlide(index, title)
   }
 
   const flushBuffered = async ({ final }: { final: boolean }) => {
@@ -439,7 +516,8 @@ export function createSlidesSummaryStreamHandler({
       const rawTag = buffered.slice(matchIndex, matchIndex + matchLength)
       const before = buffered.slice(0, matchIndex)
       const after = buffered.slice(matchIndex + matchLength)
-      appendVisible(before)
+      if (pendingSlide) await flushPendingSlide(true)
+      await appendVisible(before)
       buffered = after
       let index: number | null = null
       if (nextMatch.kind === 'fallback') {
@@ -456,7 +534,11 @@ export function createSlidesSummaryStreamHandler({
         )
       }
       if (Number.isFinite(index) && (index ?? 0) > 0) {
-        await renderSlideBlock(index as number)
+        if (getSlideMeta) {
+          pendingSlide = { index: index as number, buffer: '' }
+        } else {
+          await renderSlideBlock(index as number, null)
+        }
       }
     }
   }
@@ -469,10 +551,13 @@ export function createSlidesSummaryStreamHandler({
     },
     onDone: async () => {
       await flushBuffered({ final: true })
+      if (pendingSlide) {
+        await flushPendingSlide(true)
+      }
       const ordered = getSlideIndexOrder()
       for (const index of ordered) {
         if (!renderedSlides.has(index)) {
-          await renderSlideBlock(index)
+          await renderSlideBlock(index, null)
         }
       }
       if (outputGate) {
