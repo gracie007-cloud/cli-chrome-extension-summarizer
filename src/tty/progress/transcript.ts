@@ -113,9 +113,8 @@ export function createTranscriptProgressRenderer({
         : ''
     const svc =
       state.service === 'podcast' ? 'podcast' : state.service === 'youtube' ? 'youtube' : 'media'
-    const kindLabel = state.mediaKind === 'video' ? 'media' : 'audio'
-    const kindDetail = state.mediaKind === 'video' ? 'video' : null
-    const svcLabel = kindDetail ? `${svc}, ${kindDetail}` : svc
+    const kindLabel = state.mediaKind === 'video' ? 'video' : 'audio'
+    const svcLabel = svc
     return renderLine(
       `Downloading ${kindLabel}`,
       ` (${svcLabel}, ${downloaded}${total}, ${elapsed}${rate})…`
