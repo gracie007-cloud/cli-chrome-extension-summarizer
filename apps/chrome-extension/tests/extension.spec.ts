@@ -1292,6 +1292,516 @@ test('sidepanel clears summary when tab url changes', async ({
   }
 })
 
+test('sidepanel restores cached state when switching tabs', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
+
+  try {
+    await mockDaemonSummarize(harness)
+    await seedSettings(harness, {
+      token: 'test-token',
+      autoSummarize: false,
+      slidesEnabled: true,
+    })
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title', () => {
+      ;(window as typeof globalThis & { __summarizeTestHooks?: Record<string, unknown> })
+        .__summarizeTestHooks = {}
+    })
+    await waitForPanelPort(page)
+
+    const sseBody = (text: string) =>
+      [
+        'event: chunk',
+        `data: ${JSON.stringify({ text })}`,
+        '',
+        'event: done',
+        'data: {}',
+        '',
+      ].join('\n')
+    await page.route('http://127.0.0.1:8787/v1/summarize/**/events', async (route) => {
+      const url = route.request().url()
+      const match = url.match(/summarize\/([^/]+)\/events/)
+      const runId = match ? match[1] ?? '' : ''
+      const body = runId === 'run-a' ? sseBody('Summary A') : sseBody('Summary B')
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body,
+      })
+    })
+
+    const placeholderPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3kq0cAAAAASUVORK5CYII=',
+      'base64'
+    )
+    await page.route('http://127.0.0.1:8787/v1/slides/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'content-type': 'image/png',
+          'x-summarize-slide-ready': '1',
+        },
+        body: placeholderPng,
+      })
+    })
+
+    const tabAState = buildUiState({
+      tab: { id: 1, url: 'https://example.com/a', title: 'Alpha Tab' },
+      settings: { autoSummarize: false, slidesEnabled: true, tokenPresent: true },
+      status: '',
+    })
+    await sendBgMessage(harness, { type: 'ui:state', state: tabAState })
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-a',
+        url: 'https://example.com/a',
+        title: 'Alpha Tab',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Summary A')
+
+    await page.waitForFunction(
+      () => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+          }
+        ).__summarizeTestHooks
+        return Boolean(hooks?.applySlidesPayload)
+      },
+      null,
+      { timeout: 5_000 }
+    )
+    const slidesPayloadA = {
+      sourceUrl: 'https://example.com/a',
+      sourceId: 'alpha',
+      sourceKind: 'url',
+      ocrAvailable: true,
+      slides: [
+        {
+          index: 1,
+          timestamp: 0,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/alpha/1?v=1',
+          ocrText: 'Alpha slide one.',
+        },
+        {
+          index: 2,
+          timestamp: 12,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/alpha/2?v=1',
+          ocrText: 'Alpha slide two.',
+        },
+      ],
+    }
+    await page.evaluate((payload) => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+        }
+      ).__summarizeTestHooks
+      hooks?.applySlidesPayload?.(payload)
+    }, slidesPayloadA)
+    await expect.poll(async () => (await getPanelSlideDescriptions(page)).length).toBe(2)
+    const slidesA = await getPanelSlideDescriptions(page)
+    expect(slidesA[0]?.[1] ?? '').toContain('Alpha')
+
+    const tabBState = buildUiState({
+      tab: { id: 2, url: 'https://example.com/b', title: 'Bravo Tab' },
+      settings: { autoSummarize: false, slidesEnabled: true, tokenPresent: true },
+      status: '',
+    })
+    await sendBgMessage(harness, { type: 'ui:state', state: tabBState })
+    await expect(page.locator('#title')).toHaveText('Bravo Tab')
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-b',
+        url: 'https://example.com/b',
+        title: 'Bravo Tab',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Summary B')
+
+    const slidesPayloadB = {
+      sourceUrl: 'https://example.com/b',
+      sourceId: 'bravo',
+      sourceKind: 'url',
+      ocrAvailable: true,
+      slides: [
+        {
+          index: 1,
+          timestamp: 0,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/bravo/1?v=1',
+          ocrText: 'Bravo slide one.',
+        },
+      ],
+    }
+    await page.evaluate((payload) => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+        }
+      ).__summarizeTestHooks
+      hooks?.applySlidesPayload?.(payload)
+    }, slidesPayloadB)
+    await expect.poll(async () => (await getPanelSlideDescriptions(page)).length).toBe(1)
+    const slidesB = await getPanelSlideDescriptions(page)
+    expect(slidesB[0]?.[1] ?? '').toContain('Bravo')
+
+    await sendBgMessage(harness, { type: 'ui:state', state: tabAState })
+    await expect(page.locator('#title')).toHaveText('Alpha Tab')
+    await expect.poll(async () => await getPanelSummaryMarkdown(page)).toContain('Summary A')
+    const restoredSlides = await getPanelSlideDescriptions(page)
+    expect(restoredSlides[0]?.[1] ?? '').toContain('Alpha')
+    expect(restoredSlides.some((entry) => entry[1].includes('Bravo'))).toBe(false)
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
+test('sidepanel switches between page, video, and slides modes', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
+
+  try {
+    await seedSettings(harness, {
+      token: 'test-token',
+      autoSummarize: false,
+      slidesEnabled: false,
+      slidesLayout: 'gallery',
+    })
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title', () => {
+      ;(window as typeof globalThis & { __summarizeTestHooks?: Record<string, unknown> })
+        .__summarizeTestHooks = {}
+    })
+    await waitForPanelPort(page)
+
+    await page.route('http://127.0.0.1:8787/v1/tools', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ok: true,
+          tools: {
+            ytDlp: { available: true },
+            ffmpeg: { available: true },
+            tesseract: { available: true },
+          },
+        }),
+      })
+    })
+
+    const sseBody = (text: string) =>
+      [
+        'event: chunk',
+        `data: ${JSON.stringify({ text })}`,
+        '',
+        'event: done',
+        'data: {}',
+        '',
+      ].join('\n')
+    await page.route('http://127.0.0.1:8787/v1/summarize/**/events', async (route) => {
+      const url = route.request().url()
+      const match = url.match(/summarize\/([^/]+)\/events/)
+      const runId = match ? match[1] ?? '' : ''
+      const text =
+        runId === 'run-page'
+          ? 'Page summary'
+          : runId === 'run-video'
+            ? 'Video summary'
+            : runId === 'run-slides'
+              ? 'Slides summary'
+              : 'Back summary'
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: sseBody(text),
+      })
+    })
+
+    const placeholderPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3kq0cAAAAASUVORK5CYII=',
+      'base64'
+    )
+    await page.route('http://127.0.0.1:8787/v1/slides/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'content-type': 'image/png',
+          'x-summarize-slide-ready': '1',
+        },
+        body: placeholderPng,
+      })
+    })
+
+    const uiState = buildUiState({
+      tab: { id: 1, url: 'https://example.com/video', title: 'Example Video' },
+      media: { hasVideo: true, hasAudio: true, hasCaptions: false },
+      stats: { pageWords: 120, videoDurationSeconds: 120 },
+      settings: {
+        autoSummarize: false,
+        slidesEnabled: false,
+        slidesParallel: true,
+        slidesLayout: 'gallery',
+        tokenPresent: true,
+      },
+      status: '',
+    })
+    const summarizeButton = page.locator('.summarizeButton')
+    await expect(summarizeButton).toBeVisible()
+
+    await page.waitForFunction(
+      () => {
+        const hooks = (window as typeof globalThis & { __summarizeTestHooks?: { setSummarizeMode?: unknown } })
+          .__summarizeTestHooks
+        return typeof hooks?.setSummarizeMode === 'function'
+      },
+      null,
+      { timeout: 5_000 }
+    )
+
+    const setSummarizeMode = async (mode: 'page' | 'video', slides: boolean) => {
+      await page.evaluate(async (payload) => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: {
+              setSummarizeMode?: (payload: { mode: 'page' | 'video'; slides: boolean }) => Promise<
+                void
+              >
+              getSummarizeMode?: () => {
+                mode: 'page' | 'video'
+                slides: boolean
+                mediaAvailable: boolean
+              }
+            }
+          }
+        ).__summarizeTestHooks
+        await hooks?.setSummarizeMode?.(payload)
+      }, { mode, slides })
+    }
+
+    const getSummarizeMode = async () =>
+      await page.evaluate(() => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: {
+              getSummarizeMode?: () => {
+                mode: 'page' | 'video'
+                slides: boolean
+                mediaAvailable: boolean
+              }
+            }
+          }
+        ).__summarizeTestHooks
+        return hooks?.getSummarizeMode?.() ?? null
+      })
+
+    const ensureMediaAvailable = async (slidesEnabled: boolean) => {
+      const state = buildUiState({
+        ...uiState,
+        settings: { ...uiState.settings, slidesEnabled },
+      })
+      await expect
+        .poll(async () => {
+          await page.evaluate((payload) => {
+            const hooks = (
+              window as typeof globalThis & {
+                __summarizeTestHooks?: { applyUiState?: (state: unknown) => void }
+              }
+            ).__summarizeTestHooks
+            hooks?.applyUiState?.(payload)
+          }, state)
+          const mode = await getSummarizeMode()
+          return mode?.mediaAvailable ?? false
+        })
+        .toBe(true)
+    }
+
+    await ensureMediaAvailable(false)
+    await expect(summarizeButton).toHaveAttribute('aria-label', /120 words/)
+
+    await setSummarizeMode('page', false)
+    await expect
+      .poll(async () => await getSummarizeMode())
+      .toEqual({ mode: 'page', slides: false, mediaAvailable: true })
+    await expect(summarizeButton).toHaveAttribute('aria-label', /Page/)
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-page',
+        url: 'https://example.com/video',
+        title: 'Example Video',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Page summary')
+    await expect(page.locator('img.slideStrip__thumbImage, img.slideInline__thumbImage')).toHaveCount(
+      0
+    )
+
+    await ensureMediaAvailable(false)
+    await setSummarizeMode('video', false)
+    await expect
+      .poll(async () => await getSummarizeMode())
+      .toEqual({ mode: 'video', slides: false, mediaAvailable: true })
+    await expect(summarizeButton).toHaveAttribute('aria-label', /Video/)
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-video',
+        url: 'https://example.com/video',
+        title: 'Example Video',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Video summary')
+    await expect(page.locator('img.slideStrip__thumbImage, img.slideInline__thumbImage')).toHaveCount(
+      0
+    )
+
+    await ensureMediaAvailable(true)
+    await setSummarizeMode('video', true)
+    await expect
+      .poll(async () => await getSummarizeMode())
+      .toEqual({ mode: 'video', slides: true, mediaAvailable: true })
+    await expect(summarizeButton).toHaveAttribute('aria-label', /Video \+ Slides/)
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-slides',
+        url: 'https://example.com/video',
+        title: 'Example Video',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Slides summary')
+
+    await page.waitForFunction(
+      () => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+          }
+        ).__summarizeTestHooks
+        return Boolean(hooks?.applySlidesPayload)
+      },
+      null,
+      { timeout: 5_000 }
+    )
+    const slidesPayload = {
+      sourceUrl: 'https://example.com/video',
+      sourceId: 'example-video',
+      sourceKind: 'url',
+      ocrAvailable: true,
+      slides: [
+        {
+          index: 1,
+          timestamp: 0,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/example-video/1?v=1',
+          ocrText: 'Slide one shows the overview and key takeaways.',
+        },
+        {
+          index: 2,
+          timestamp: 10,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/example-video/2?v=1',
+          ocrText: 'Slide two breaks down the details with metrics.',
+        },
+      ],
+    }
+    await page.evaluate((payload) => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+        }
+      ).__summarizeTestHooks
+      hooks?.applySlidesPayload?.(payload)
+    }, slidesPayload)
+    await expect.poll(async () => (await getPanelSlideDescriptions(page)).length).toBe(2)
+    await expect
+      .poll(async () => (await getSummarizeMode())?.slides ?? false)
+      .toBe(true)
+    const getSlidesState = async () =>
+      await page.evaluate(() => {
+        const hooks = (
+          window as typeof globalThis & {
+            __summarizeTestHooks?: {
+              getSlidesState?: () => { slidesCount: number; layout: string; hasSlides: boolean }
+              renderSlidesNow?: () => void
+              applyUiState?: (state: unknown) => void
+            }
+          }
+        ).__summarizeTestHooks
+        return hooks?.getSlidesState?.() ?? null
+      })
+    await expect.poll(async () => (await getSlidesState())?.slidesCount ?? 0).toBe(2)
+    const renderedCount = await page.evaluate(() => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: { forceRenderSlides?: () => number }
+        }
+      ).__summarizeTestHooks
+      return hooks?.forceRenderSlides?.() ?? 0
+    })
+    expect(renderedCount).toBeGreaterThan(0)
+
+    const slideImages = page.locator('img.slideInline__thumbImage, img.slideStrip__thumbImage')
+    await expect(slideImages).toHaveCount(2)
+    await slideImages.first().scrollIntoViewIfNeeded()
+    await expect
+      .poll(
+        async () => {
+          const loaded = await slideImages.evaluateAll((nodes) =>
+            nodes.map((node) => Boolean(node.dataset.slideImageUrl))
+          )
+          return loaded.every(Boolean)
+        },
+        { timeout: 10_000 }
+      )
+      .toBe(true)
+    await expect(page.locator('.slideGallery__text, .slideStrip__text')).toContainText([
+      'Slide one shows the overview',
+      'Slide two breaks down the details',
+    ])
+
+    await ensureMediaAvailable(false)
+    await setSummarizeMode('page', false)
+    await expect
+      .poll(async () => await getSummarizeMode())
+      .toEqual({ mode: 'page', slides: false, mediaAvailable: true })
+    await expect(summarizeButton).toHaveAttribute('aria-label', /Page/)
+    await sendBgMessage(harness, {
+      type: 'run:start',
+      run: {
+        id: 'run-back',
+        url: 'https://example.com/video',
+        title: 'Example Video',
+        model: 'auto',
+        reason: 'manual',
+      },
+    })
+    await expect(page.locator('#render')).toContainText('Back summary')
+    await expect(page.locator('img.slideStrip__thumbImage, img.slideInline__thumbImage')).toHaveCount(
+      0
+    )
+    await expect(page.locator('.slideGallery__text, .slideStrip__text')).toHaveCount(0)
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
 test('sidepanel video selection forces transcript mode', async ({
   browserName: _browserName,
 }, testInfo) => {
