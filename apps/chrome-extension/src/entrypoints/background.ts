@@ -122,6 +122,7 @@ type UiState = {
     automationEnabled: boolean
     slidesEnabled: boolean
     slidesParallel: boolean
+    slidesOcrEnabled: boolean
     slidesLayout: 'strip' | 'gallery'
     fontSize: number
     lineHeight: number
@@ -203,7 +204,11 @@ const formatSlideTimestamp = (seconds: number): string => {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`
 }
 
-const buildSlidesText = (slides: SlidesPayload | null): { count: number; text: string } | null => {
+const buildSlidesText = (
+  slides: SlidesPayload | null,
+  allowOcr: boolean
+): { count: number; text: string } | null => {
+  if (!allowOcr) return null
   if (!slides || slides.slides.length === 0) return null
   let remaining = MAX_SLIDE_OCR_CHARS
   const lines: string[] = []
@@ -973,6 +978,7 @@ export default defineBackground(() => {
         automationEnabled: settings.automationEnabled,
         slidesEnabled: settings.slidesEnabled,
         slidesParallel: settings.slidesParallel,
+        slidesOcrEnabled: settings.slidesOcrEnabled,
         slidesLayout: settings.slidesLayout,
         fontSize: settings.fontSize,
         lineHeight: settings.lineHeight,
@@ -1347,7 +1353,7 @@ export default defineBackground(() => {
     const slidesConfig = wantsSlides
       ? {
           enabled: true,
-          ocr: true,
+          ocr: settings.slidesOcrEnabled,
           maxSlides: slideAuto.maxSlides,
           minDurationSeconds: slideAuto.minDurationSeconds,
         }
@@ -1718,7 +1724,7 @@ export default defineBackground(() => {
           }
           const summaryText =
             typeof agentPayload.summary === 'string' ? agentPayload.summary.trim() : ''
-          const slidesContext = buildSlidesText(cachedExtract.slides)
+          const slidesContext = buildSlidesText(cachedExtract.slides, settings.slidesOcrEnabled)
           const pageContent = buildChatPageContent({
             transcript: cachedExtract.transcriptTimedText ?? cachedExtract.text,
             summary: summaryText,

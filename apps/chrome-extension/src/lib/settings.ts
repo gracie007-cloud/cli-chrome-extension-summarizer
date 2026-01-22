@@ -15,6 +15,7 @@ export type Settings = {
   automationEnabled: boolean
   slidesEnabled: boolean
   slidesParallel: boolean
+  slidesOcrEnabled: boolean
   slidesLayout: SlidesLayout
   summaryTimestamps: boolean
   extendedLogging: boolean
@@ -203,6 +204,7 @@ export const defaultSettings: Settings = {
   automationEnabled: false,
   slidesEnabled: false,
   slidesParallel: true,
+  slidesOcrEnabled: false,
   slidesLayout: 'strip',
   summaryTimestamps: true,
   extendedLogging: false,
@@ -268,6 +270,10 @@ export async function loadSettings(): Promise<Settings> {
       typeof raw.slidesEnabled === 'boolean' ? raw.slidesEnabled : defaultSettings.slidesEnabled,
     slidesParallel:
       typeof raw.slidesParallel === 'boolean' ? raw.slidesParallel : defaultSettings.slidesParallel,
+    slidesOcrEnabled:
+      typeof raw.slidesOcrEnabled === 'boolean'
+        ? raw.slidesOcrEnabled
+        : defaultSettings.slidesOcrEnabled,
     slidesLayout: normalizeSlidesLayout(raw.slidesLayout),
     summaryTimestamps:
       typeof raw.summaryTimestamps === 'boolean'

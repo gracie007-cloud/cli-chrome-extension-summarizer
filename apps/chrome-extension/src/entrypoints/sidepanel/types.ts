@@ -14,6 +14,7 @@ export type UiState = {
     automationEnabled: boolean
     slidesEnabled: boolean
     slidesParallel: boolean
+    slidesOcrEnabled: boolean
     slidesLayout: 'strip' | 'gallery'
     fontSize: number
     lineHeight: number

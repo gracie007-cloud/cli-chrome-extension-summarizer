@@ -49,6 +49,7 @@ const skillsConflictsEl = byId<HTMLDivElement>('skillsImportConflicts')
 const hoverSummariesToggleRoot = byId<HTMLDivElement>('hoverSummariesToggle')
 const summaryTimestampsToggleRoot = byId<HTMLDivElement>('summaryTimestampsToggle')
 const slidesParallelToggleRoot = byId<HTMLDivElement>('slidesParallelToggle')
+const slidesOcrToggleRoot = byId<HTMLDivElement>('slidesOcrToggle')
 const extendedLoggingToggleRoot = byId<HTMLDivElement>('extendedLoggingToggle')
 const requestModeEl = byId<HTMLSelectElement>('requestMode')
 const firecrawlModeEl = byId<HTMLSelectElement>('firecrawlMode')
@@ -86,6 +87,7 @@ let automationEnabledValue = defaultSettings.automationEnabled
 let hoverSummariesValue = defaultSettings.hoverSummaries
 let summaryTimestampsValue = defaultSettings.summaryTimestamps
 let slidesParallelValue = defaultSettings.slidesParallel
+let slidesOcrEnabledValue = defaultSettings.slidesOcrEnabled
 let extendedLoggingValue = defaultSettings.extendedLogging
 
 let skillsCache: Skill[] = []
@@ -235,6 +237,7 @@ const saveNow = async () => {
       automationEnabled: automationEnabledValue,
       slidesEnabled: current.slidesEnabled,
       slidesParallel: slidesParallelValue,
+      slidesOcrEnabled: slidesOcrEnabledValue,
       slidesLayout: current.slidesLayout,
       summaryTimestamps: summaryTimestampsValue,
       extendedLogging: extendedLoggingValue,
@@ -1115,6 +1118,26 @@ const slidesParallelToggle = mountCheckbox(slidesParallelToggleRoot, {
   onCheckedChange: handleSlidesParallelToggleChange,
 })
 
+const updateSlidesOcrToggle = () => {
+  slidesOcrToggle.update({
+    id: 'options-slides-ocr',
+    label: 'Enable OCR slide text',
+    checked: slidesOcrEnabledValue,
+    onCheckedChange: handleSlidesOcrToggleChange,
+  })
+}
+const handleSlidesOcrToggleChange = (checked: boolean) => {
+  slidesOcrEnabledValue = checked
+  updateSlidesOcrToggle()
+  scheduleAutoSave(0)
+}
+const slidesOcrToggle = mountCheckbox(slidesOcrToggleRoot, {
+  id: 'options-slides-ocr',
+  label: 'Enable OCR slide text',
+  checked: slidesOcrEnabledValue,
+  onCheckedChange: handleSlidesOcrToggleChange,
+})
+
 const updateExtendedLoggingToggle = () => {
   extendedLoggingToggle.update({
     id: 'options-extended-logging',
@@ -1155,6 +1178,7 @@ async function load() {
   hoverSummariesValue = s.hoverSummaries
   summaryTimestampsValue = s.summaryTimestamps
   slidesParallelValue = s.slidesParallel
+  slidesOcrEnabledValue = s.slidesOcrEnabled
   extendedLoggingValue = s.extendedLogging
   updateAutoToggle()
   updateChatToggle()
@@ -1162,6 +1186,7 @@ async function load() {
   updateHoverSummariesToggle()
   updateSummaryTimestampsToggle()
   updateSlidesParallelToggle()
+  updateSlidesOcrToggle()
   updateExtendedLoggingToggle()
   maxCharsEl.value = String(s.maxChars)
   requestModeEl.value = s.requestMode

@@ -99,7 +99,7 @@ See `docs/media.md` for detection and transcript rules.
 ## Slides (Side Panel)
 
 - The slides toggle lights up on media-friendly URLs (YouTube/watch|shorts, youtu.be, direct media) or when the page reports video/audio. Defaults to Video on those pages.
-- Turning slides **on** now refreshes the current summary and requests slide extraction + OCR (`yt-dlp`, `ffmpeg`, `tesseract` for OCR). Missing tools surface a footer notice with install instructions; restart the daemon after installing.
+- Turning slides **on** refreshes the current summary and requests slide extraction (`yt-dlp`, `ffmpeg`). OCR text is opt-in (Advanced setting) and requires `tesseract`. Missing tools surface a footer notice with install instructions; restart the daemon after installing.
 - Slides stay off elsewhere and the toggle is disabled on non-media pages.
 
 ## SPA Navigation
@@ -134,6 +134,7 @@ See `docs/media.md` for detection and transcript rules.
   - Chat (advanced): enable/disable the side panel chat input (default on; summary is the first message).
   - Summary timestamps (advanced): include `[mm:ss]` links in summaries for media when available (default on).
   - Slides parallel (advanced): show summary first and extract slides in parallel (default on).
+  - Slides OCR text (advanced): allow OCR text as a slide text source (default off).
   - Extended logging: send full input/output to daemon logs (requires daemon logging enabled).
   - Hover summary prompt: customize the prompt used for link hover summaries (prefilled; reset to default).
   - Pipeline mode: `page|url` (default auto).

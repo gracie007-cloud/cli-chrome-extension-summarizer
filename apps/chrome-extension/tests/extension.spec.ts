@@ -78,6 +78,7 @@ type UiState = {
     automationEnabled: boolean
     slidesEnabled: boolean
     slidesParallel: boolean
+    slidesOcrEnabled: boolean
     slidesLayout?: 'strip' | 'gallery'
     model: string
     length: string
@@ -99,6 +100,7 @@ const defaultUiState: UiState = {
     automationEnabled: false,
     slidesEnabled: false,
     slidesParallel: true,
+    slidesOcrEnabled: false,
     slidesLayout: 'strip',
     model: 'auto',
     length: 'xl',

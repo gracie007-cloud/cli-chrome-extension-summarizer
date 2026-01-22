@@ -241,6 +241,7 @@ let chatEnabledValue = defaultSettings.chatEnabled
 let automationEnabledValue = defaultSettings.automationEnabled
 let slidesEnabledValue = defaultSettings.slidesEnabled
 let slidesParallelValue = defaultSettings.slidesParallel
+let slidesOcrEnabledValue = defaultSettings.slidesOcrEnabled
 let autoKickTimer = 0
 
 const MAX_CHAT_MESSAGES = 1000
@@ -376,7 +377,7 @@ function maybeStartPendingSlidesForUrl(url: string | null) {
   startSlidesSummaryStreamForRunId(pending.runId, pending.url)
 }
 
-async function fetchSlideTools(): Promise<{
+async function fetchSlideTools(requireOcr: boolean): Promise<{
   ok: boolean
   missing: string[]
 }> {
@@ -404,7 +405,7 @@ async function fetchSlideTools(): Promise<{
   const missing: string[] = []
   if (!json.tools.ytDlp?.available) missing.push('yt-dlp')
   if (!json.tools.ffmpeg?.available) missing.push('ffmpeg')
-  if (!json.tools.tesseract?.available) missing.push('tesseract')
+  if (requireOcr && !json.tools.tesseract?.available) missing.push('tesseract')
   return { ok: missing.length === 0, missing }
 }
 
@@ -613,7 +614,7 @@ async function handleSummarizeControlChange(value: { mode: 'page' | 'video'; sli
   const prevSlides = slidesEnabledValue
   const prevMode = inputMode
   if (value.slides && !slidesEnabledValue) {
-    const tools = await fetchSlideTools()
+    const tools = await fetchSlideTools(slidesOcrEnabledValue)
     if (!tools.ok) {
       const missing = tools.missing.join(', ')
       showSlideNotice(`Slide extraction requires ${missing}. Install and restart the daemon.`)
@@ -642,6 +643,7 @@ async function handleSummarizeControlChange(value: { mode: 'page' | 'video'; sli
 
 function handleSlidesTextModeChange(next: SlideTextMode) {
   if (next === slidesTextMode) return
+  if (next === 'ocr' && !slidesOcrEnabledValue) return
   if (next === 'ocr' && !slidesOcrAvailable) return
   slidesTextMode = next
   rebuildSlideDescriptions()
@@ -1501,16 +1503,14 @@ function updateSlidesTextState() {
     slidesOcrAvailable &&
     ocrTotal >= SLIDE_OCR_SIGNIFICANT_TOTAL &&
     ocrSlides >= SLIDE_OCR_SIGNIFICANT_SLIDES
-  slidesTextToggleVisible = slidesTranscriptAvailable && ocrSignificant
-  if (slidesTranscriptAvailable) {
-    if (!slidesTextToggleVisible) {
-      slidesTextMode = 'transcript'
-    } else if (!slidesOcrAvailable && slidesTextMode === 'ocr') {
+  const allowOcr = slidesOcrEnabledValue && ocrSignificant
+  slidesTextToggleVisible = allowOcr
+  if (!allowOcr || !slidesOcrAvailable) {
+    if (slidesTextMode === 'ocr') {
       slidesTextMode = 'transcript'
     }
-  } else if (slidesOcrAvailable) {
-    slidesTextMode = 'ocr'
-  } else {
+  }
+  if (!slidesTranscriptAvailable && !allowOcr) {
     slidesTextMode = 'transcript'
   }
   rebuildSlideDescriptions()
@@ -3512,6 +3512,11 @@ function updateControls(state: UiState) {
   automationEnabledValue = state.settings.automationEnabled
   slidesEnabledValue = state.settings.slidesEnabled
   slidesParallelValue = state.settings.slidesParallel
+  const nextSlidesOcrEnabled = Boolean(state.settings.slidesOcrEnabled)
+  if (nextSlidesOcrEnabled !== slidesOcrEnabledValue) {
+    slidesOcrEnabledValue = nextSlidesOcrEnabled
+    updateSlidesTextState()
+  }
   const fallbackModel = typeof state.settings.model === 'string' ? state.settings.model.trim() : ''
   if (fallbackModel && (!panelState.lastMeta.model || !panelState.lastMeta.model.trim())) {
     panelState.lastMeta = {

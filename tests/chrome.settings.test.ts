@@ -59,6 +59,12 @@ describe('chrome/settings', () => {
     expect(loaded.language).toBe('en')
   })
 
+  it('persists slide OCR preference', async () => {
+    await patchSettings({ slidesOcrEnabled: true })
+    const loaded = await loadSettings()
+    expect(loaded.slidesOcrEnabled).toBe(true)
+  })
+
   it('normalizes advanced overrides on save', async () => {
     await saveSettings({
       ...defaultSettings,
