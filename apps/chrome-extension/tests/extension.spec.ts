@@ -1467,6 +1467,122 @@ test('sidepanel restores cached state when switching tabs', async ({
   }
 })
 
+test('sidepanel resumes slides when returning to a tab', async ({
+  browserName: _browserName,
+}, testInfo) => {
+  const harness = await launchExtension(getBrowserFromProject(testInfo.project.name))
+
+  try {
+    await seedSettings(harness, {
+      token: 'test-token',
+      autoSummarize: false,
+      slidesEnabled: true,
+      slidesParallel: true,
+    })
+    const page = await openExtensionPage(harness, 'sidepanel.html', '#title', () => {
+      ;(
+        window as typeof globalThis & { __summarizeTestHooks?: Record<string, unknown> }
+      ).__summarizeTestHooks = {}
+    })
+    await waitForPanelPort(page)
+
+    const slidesPayload = {
+      sourceUrl: 'https://www.youtube.com/watch?v=abc123',
+      sourceId: 'alpha',
+      sourceKind: 'youtube',
+      ocrAvailable: true,
+      slides: [
+        {
+          index: 1,
+          timestamp: 0,
+          imageUrl: 'http://127.0.0.1:8787/v1/slides/alpha/1?v=1',
+          ocrText: 'Alpha slide one.',
+        },
+      ],
+    }
+
+    const slidesStreamBody = [
+      'event: slides',
+      `data: ${JSON.stringify(slidesPayload)}`,
+      '',
+      'event: done',
+      'data: {}',
+      '',
+    ].join('\n')
+    await page.route(
+      'http://127.0.0.1:8787/v1/summarize/slides-a/slides/events',
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+          body: slidesStreamBody,
+        })
+      }
+    )
+    await page.route('http://127.0.0.1:8787/v1/summarize/slides-a/events', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: ['event: done', 'data: {}', ''].join('\n'),
+      })
+    })
+
+    const placeholderPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3kq0cAAAAASUVORK5CYII=',
+      'base64'
+    )
+    await page.route('http://127.0.0.1:8787/v1/slides/**', async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          'content-type': 'image/png',
+          'x-summarize-slide-ready': '1',
+        },
+        body: placeholderPng,
+      })
+    })
+
+    const tabAState = buildUiState({
+      tab: { id: 1, url: 'https://www.youtube.com/watch?v=abc123', title: 'Alpha Video' },
+      media: { hasVideo: true, hasAudio: true, hasCaptions: true },
+      settings: {
+        autoSummarize: false,
+        slidesEnabled: true,
+        slidesParallel: true,
+        tokenPresent: true,
+      },
+    })
+    const tabBState = buildUiState({
+      tab: { id: 2, url: 'https://example.com', title: 'Bravo Tab' },
+      media: { hasVideo: false, hasAudio: false, hasCaptions: false },
+      settings: {
+        autoSummarize: false,
+        slidesEnabled: true,
+        slidesParallel: true,
+        tokenPresent: true,
+      },
+    })
+
+    await sendBgMessage(harness, { type: 'ui:state', state: tabAState })
+    await sendBgMessage(harness, { type: 'ui:state', state: tabBState })
+    await sendBgMessage(harness, {
+      type: 'slides:run',
+      ok: true,
+      runId: 'slides-a',
+      url: 'https://www.youtube.com/watch?v=abc123',
+    })
+    await sendBgMessage(harness, { type: 'ui:state', state: tabAState })
+
+    await expect.poll(async () => (await getPanelSlideDescriptions(page)).length).toBe(1)
+    const slides = await getPanelSlideDescriptions(page)
+    expect(slides[0]?.[1] ?? '').toContain('Alpha')
+
+    assertNoErrors(harness)
+  } finally {
+    await closeExtension(harness.context, harness.userDataDir)
+  }
+})
+
 test('sidepanel switches between page, video, and slides modes', async ({
   browserName: _browserName,
 }, testInfo) => {

@@ -298,6 +298,7 @@ let slidesSummaryHadError = false
 let slidesSummaryComplete = false
 let slidesSummaryModel: string | null = null
 let pendingRunForPlannedSlides: RunStart | null = null
+const pendingSlidesRunsByUrl = new Map<string, { runId: string; url: string }>()
 
 const AGENT_NAV_TTL_MS = 20_000
 type AgentNavigation = { url: string; tabId: number | null; at: number }
@@ -358,6 +359,21 @@ function stopSlidesSummaryStream() {
   slidesSummaryComplete = false
   slidesSummaryModel = null
   slideSummarySource = null
+}
+
+function maybeStartPendingSlidesForUrl(url: string | null) {
+  if (!url) return
+  const key = normalizeUrl(url)
+  const pending = pendingSlidesRunsByUrl.get(key)
+  if (!pending) return
+  if (!slidesEnabledValue) return
+  const effectiveInputMode = inputModeOverride ?? inputMode
+  if (effectiveInputMode !== 'video') return
+  if (slidesHydrator.isStreaming()) return
+  if (panelState.slides && panelState.slides.slides.length > 0) return
+  pendingSlidesRunsByUrl.delete(key)
+  startSlidesStreamForRunId(pending.runId)
+  startSlidesSummaryStreamForRunId(pending.runId, pending.url)
 }
 
 async function fetchSlideTools(): Promise<{
@@ -616,6 +632,7 @@ async function handleSummarizeControlChange(value: { mode: 'page' | 'video'; sli
   await patchSettings({ slidesEnabled: slidesEnabledValue })
   if (slidesEnabledValue && (inputModeOverride ?? inputMode) === 'video') {
     maybeApplyPendingSlidesSummary()
+    maybeStartPendingSlidesForUrl(activeTabUrl ?? null)
   }
   if (autoValue && (value.mode !== prevMode || value.slides !== prevSlides)) {
     sendSummarize({ refresh: true })
@@ -3514,6 +3531,7 @@ function updateControls(state: UiState) {
   if (!slidesEnabledValue) hideSlideNotice()
   if (slidesEnabledValue && (inputModeOverride ?? inputMode) === 'video') {
     maybeApplyPendingSlidesSummary()
+    maybeStartPendingSlidesForUrl(nextTabUrl ?? null)
   }
   applyChatEnabled()
   if (chatEnabledValue && activeTabId && chatController.getMessages().length === 0) {
@@ -3615,6 +3633,7 @@ function handleBgMessage(msg: BgToPanel) {
       const targetUrl = msg.url ?? null
       const currentUrl = panelState.currentSource?.url ?? activeTabUrl ?? null
       if (targetUrl && currentUrl && !urlsMatch(targetUrl, currentUrl)) {
+        pendingSlidesRunsByUrl.set(normalizeUrl(targetUrl), { runId: msg.runId, url: targetUrl })
         return
       }
       startSlidesStreamForRunId(msg.runId)
