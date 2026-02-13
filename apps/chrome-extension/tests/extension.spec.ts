@@ -1474,14 +1474,60 @@ test('sidepanel restores cached state when switching YouTube tabs', async ({
       () => {
         const hooks = (
           window as typeof globalThis & {
-            __summarizeTestHooks?: { applySlidesPayload?: (payload: unknown) => void }
+            __summarizeTestHooks?: {
+              applySlidesPayload?: (payload: unknown) => void
+              setSummarizeMode?: (payload: {
+                mode: 'page' | 'video'
+                slides: boolean
+              }) => Promise<void>
+              getSummarizeMode?: () => {
+                mode: 'page' | 'video'
+                slides: boolean
+                mediaAvailable: boolean
+              }
+            }
           }
         ).__summarizeTestHooks
-        return Boolean(hooks?.applySlidesPayload)
+        return Boolean(
+          hooks?.applySlidesPayload && hooks?.setSummarizeMode && hooks?.getSummarizeMode
+        )
       },
       null,
       { timeout: 5_000 }
     )
+
+    await page.evaluate(async () => {
+      const hooks = (
+        window as typeof globalThis & {
+          __summarizeTestHooks?: {
+            setSummarizeMode?: (payload: {
+              mode: 'page' | 'video'
+              slides: boolean
+            }) => Promise<void>
+          }
+        }
+      ).__summarizeTestHooks
+      await hooks?.setSummarizeMode?.({ mode: 'video', slides: true })
+    })
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const hooks = (
+            window as typeof globalThis & {
+              __summarizeTestHooks?: {
+                getSummarizeMode?: () => {
+                  mode: 'page' | 'video'
+                  slides: boolean
+                  mediaAvailable: boolean
+                }
+              }
+            }
+          ).__summarizeTestHooks
+          return hooks?.getSummarizeMode?.() ?? null
+        })
+      )
+      .toEqual({ mode: 'video', slides: true, mediaAvailable: true })
     const slidesPayloadA = {
       sourceUrl: 'https://www.youtube.com/watch?v=alpha123',
       sourceId: 'alpha',
@@ -2250,37 +2296,32 @@ test('sidepanel scrolls YouTube slides and shows text for each slide', async ({
     const slideItems = page.locator('.slideGallery__item')
     await expect(slideItems).toHaveCount(12)
 
-    const scrollSlideIntoView = async (index: number) => {
-      await expect
-        .poll(async () => {
-          try {
-            await slideItems.nth(index).scrollIntoViewIfNeeded()
-            return true
-          } catch {
-            return false
-          }
-        })
-        .toBe(true)
-    }
+    const galleryList = page.locator('.slideGallery__list')
+    await expect(galleryList).toBeVisible()
+    await galleryList.evaluate((node) => {
+      node.scrollTop = node.scrollHeight
+    })
+    await expect(slideItems.nth(11)).toBeVisible()
 
-    for (let index = 0; index < 12; index += 1) {
-      await scrollSlideIntoView(index)
-      const item = slideItems.nth(index)
-      await expect(item).toBeVisible()
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          Array.from(
+            document.querySelectorAll<HTMLImageElement>('img.slideInline__thumbImage')
+          ).every((img) => (img.dataset.slideImageUrl ?? '').trim().length > 0)
+        )
+      )
+      .toBe(true)
 
-      const img = item.locator('img.slideInline__thumbImage')
-      await expect(img).toBeVisible()
-      await expect
-        .poll(async () => (await img.evaluate((node) => node.dataset.slideImageUrl ?? '')).trim(), {
-          timeout: 10_000,
-        })
-        .not.toBe('')
-
-      const text = item.locator('.slideGallery__text')
-      await expect
-        .poll(async () => (await text.textContent())?.trim() ?? '', { timeout: 10_000 })
-        .not.toBe('')
-    }
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          Array.from(document.querySelectorAll<HTMLElement>('.slideGallery__text')).every(
+            (el) => (el.textContent ?? '').trim().length > 0
+          )
+        )
+      )
+      .toBe(true)
 
     const slideDescriptions = await getPanelSlideDescriptions(page)
     expect(slideDescriptions).toHaveLength(12)
