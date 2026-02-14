@@ -85,24 +85,25 @@ export type SummaryStreamHandler = {
 };
 
 export function createSummaryEngine(deps: SummaryEngineDeps) {
-  const applyZaiOverrides = (attempt: ModelAttempt): ModelAttempt => {
-    if (!attempt.userModelId.toLowerCase().startsWith("zai/")) return attempt;
-    return {
-      ...attempt,
-      openaiApiKeyOverride: deps.zai.apiKey,
-      openaiBaseUrlOverride: deps.zai.baseUrl,
-      forceChatCompletions: true,
-    };
-  };
-
-  const applyNvidiaOverrides = (attempt: ModelAttempt): ModelAttempt => {
-    if (!attempt.userModelId.toLowerCase().startsWith("nvidia/")) return attempt;
-    return {
-      ...attempt,
-      openaiApiKeyOverride: deps.nvidia.apiKey,
-      openaiBaseUrlOverride: deps.nvidia.baseUrl,
-      forceChatCompletions: true,
-    };
+  const applyOpenAiGatewayOverrides = (attempt: ModelAttempt): ModelAttempt => {
+    const modelIdLower = attempt.userModelId.toLowerCase();
+    if (modelIdLower.startsWith("zai/")) {
+      return {
+        ...attempt,
+        openaiApiKeyOverride: deps.zai.apiKey,
+        openaiBaseUrlOverride: deps.zai.baseUrl,
+        forceChatCompletions: true,
+      };
+    }
+    if (modelIdLower.startsWith("nvidia/")) {
+      return {
+        ...attempt,
+        openaiApiKeyOverride: deps.nvidia.apiKey,
+        openaiBaseUrlOverride: deps.nvidia.baseUrl,
+        forceChatCompletions: true,
+      };
+    }
+    return attempt;
   };
 
   const envHasKeyFor = (requiredEnv: ModelAttempt["requiredEnv"]) => {
@@ -577,8 +578,7 @@ export function createSummaryEngine(deps: SummaryEngineDeps) {
   };
 
   return {
-    applyZaiOverrides,
-    applyNvidiaOverrides,
+    applyOpenAiGatewayOverrides,
     envHasKeyFor,
     formatMissingModelError,
     runSummaryAttempt,

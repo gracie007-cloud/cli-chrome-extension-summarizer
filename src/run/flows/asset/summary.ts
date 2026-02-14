@@ -390,9 +390,7 @@ export async function summarizeAsset(ctx: AssetSummaryContext, args: SummarizeAs
       });
       const mapped: ModelAttempt[] = all.map((attempt) => {
         if (attempt.transport !== "cli")
-          return ctx.summaryEngine.applyNvidiaOverrides(
-            ctx.summaryEngine.applyZaiOverrides(attempt as ModelAttempt),
-          );
+          return ctx.summaryEngine.applyOpenAiGatewayOverrides(attempt as ModelAttempt);
         const parsed = parseCliUserModelId(attempt.userModelId);
         return { ...attempt, cliProvider: parsed.provider, cliModel: parsed.model };
       });

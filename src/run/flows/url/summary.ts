@@ -654,9 +654,7 @@ export async function summarizeExtractedUrl({
       }
       return list.map((attempt) => {
         if (attempt.transport !== "cli")
-          return model.summaryEngine.applyNvidiaOverrides(
-            model.summaryEngine.applyZaiOverrides(attempt as ModelAttempt),
-          );
+          return model.summaryEngine.applyOpenAiGatewayOverrides(attempt as ModelAttempt);
         const parsed = parseCliUserModelId(attempt.userModelId);
         return { ...attempt, cliProvider: parsed.provider, cliModel: parsed.model };
       });

@@ -71,8 +71,7 @@ const createContext = (overrides: Partial<Parameters<typeof summarizeAsset>[0]> 
     streamingEnabled: false,
     plain: true,
     summaryEngine: {
-      applyZaiOverrides: (attempt) => attempt,
-      applyNvidiaOverrides: (attempt) => attempt,
+      applyOpenAiGatewayOverrides: (attempt) => attempt,
     } as Parameters<typeof summarizeAsset>[0]["summaryEngine"],
     trackedFetch: globalThis.fetch.bind(globalThis),
     writeViaFooter,

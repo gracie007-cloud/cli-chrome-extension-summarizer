@@ -287,18 +287,37 @@ export async function generateTextWithModelId({
   }
 
   const context = promptToContext(prompt);
-  const openaiConfig: OpenAiClientConfig | null =
-    parsed.provider === "openai"
-      ? resolveOpenAiClientConfig({
-          apiKeys: {
-            openaiApiKey: apiKeys.openaiApiKey,
-            openrouterApiKey: apiKeys.openrouterApiKey,
-          },
-          forceOpenRouter,
-          openaiBaseUrlOverride,
-          forceChatCompletions,
-        })
-      : null;
+
+  const resolveOpenAiConfig = (): OpenAiClientConfig =>
+    resolveOpenAiClientConfig({
+      apiKeys: {
+        openaiApiKey: apiKeys.openaiApiKey,
+        openrouterApiKey: apiKeys.openrouterApiKey,
+      },
+      forceOpenRouter,
+      openaiBaseUrlOverride,
+      forceChatCompletions,
+    });
+
+  const completeSimpleText = async ({
+    model,
+    apiKey,
+    signal,
+  }: {
+    model: Parameters<typeof completeSimple>[0];
+    apiKey: string;
+    signal: AbortSignal;
+  }): Promise<{ text: string; usage: LlmTokenUsage | null }> => {
+    const result = await completeSimple(model, context, {
+      ...(typeof effectiveTemperature === "number" ? { temperature: effectiveTemperature } : {}),
+      ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
+      apiKey,
+      signal,
+    });
+    const text = extractText(result);
+    if (!text) throw new Error(`LLM returned an empty summary (model ${parsed.canonical}).`);
+    return { text, usage: normalizeTokenUsage(result.usage) };
+  };
 
   const maxRetries = Math.max(0, retries);
   let attempt = 0;
@@ -379,72 +398,49 @@ export async function generateTextWithModelId({
       if (parsed.provider === "zai") {
         const apiKey = apiKeys.openaiApiKey;
         if (!apiKey) throw new Error("Missing Z_AI_API_KEY for zai/... model");
-        const model = resolveZaiModel({
-          modelId: parsed.model,
-          context,
-          openaiBaseUrlOverride,
-        });
-        const result = await completeSimple(model, context, {
-          ...(typeof effectiveTemperature === "number"
-            ? { temperature: effectiveTemperature }
-            : {}),
-          ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
-          apiKey,
-          signal: controller.signal,
-        });
-        const text = extractText(result);
-        if (!text) throw new Error(`LLM returned an empty summary (model ${parsed.canonical}).`);
+        const model = resolveZaiModel({ modelId: parsed.model, context, openaiBaseUrlOverride });
+        const result = await completeSimpleText({ model, apiKey, signal: controller.signal });
         return {
-          text,
+          text: result.text,
           canonicalModelId: parsed.canonical,
           provider: parsed.provider,
-          usage: normalizeTokenUsage(result.usage),
+          usage: result.usage,
         };
       }
 
       if (parsed.provider === "nvidia") {
         const apiKey = apiKeys.openaiApiKey;
         if (!apiKey) throw new Error("Missing NVIDIA_API_KEY for nvidia/... model");
-        const model = resolveNvidiaModel({
-          modelId: parsed.model,
-          context,
-          openaiBaseUrlOverride,
-        });
-        const result = await completeSimple(model, context, {
-          ...(typeof effectiveTemperature === "number"
-            ? { temperature: effectiveTemperature }
-            : {}),
-          ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
-          apiKey,
-          signal: controller.signal,
-        });
-        const text = extractText(result);
-        if (!text) throw new Error(`LLM returned an empty summary (model ${parsed.canonical}).`);
+        const model = resolveNvidiaModel({ modelId: parsed.model, context, openaiBaseUrlOverride });
+        const result = await completeSimpleText({ model, apiKey, signal: controller.signal });
         return {
-          text,
+          text: result.text,
           canonicalModelId: parsed.canonical,
           provider: parsed.provider,
-          usage: normalizeTokenUsage(result.usage),
+          usage: result.usage,
         };
       }
 
-      if (!openaiConfig) {
-        throw new Error("Missing OPENAI_API_KEY for openai/... model");
+      if (parsed.provider === "openai") {
+        const openaiConfig = resolveOpenAiConfig();
+        const result = await completeOpenAiText({
+          modelId: parsed.model,
+          openaiConfig,
+          context,
+          temperature: effectiveTemperature,
+          maxOutputTokens,
+          signal: controller.signal,
+        });
+        return {
+          text: result.text,
+          canonicalModelId: parsed.canonical,
+          provider: parsed.provider,
+          usage: result.usage,
+        };
       }
-      const result = await completeOpenAiText({
-        modelId: parsed.model,
-        openaiConfig,
-        context,
-        temperature: effectiveTemperature,
-        maxOutputTokens,
-        signal: controller.signal,
-      });
-      return {
-        text: result.text,
-        canonicalModelId: parsed.canonical,
-        provider: parsed.provider,
-        usage: result.usage,
-      };
+
+      /* v8 ignore next */
+      throw new Error(`Unknown provider ${parsed.provider}`);
     } catch (error) {
       const normalizedError =
         error instanceof DOMException && error.name === "AbortError"
@@ -667,40 +663,6 @@ export async function streamTextWithContext({
       };
     }
 
-    if (parsed.provider === "nvidia") {
-      const apiKey = apiKeys.openaiApiKey;
-      if (!apiKey) throw new Error("Missing NVIDIA_API_KEY for nvidia/... model");
-      const model = resolveNvidiaModel({
-        modelId: parsed.model,
-        context,
-        openaiBaseUrlOverride,
-      });
-      const stream = streamSimple(model, context, {
-        ...(typeof effectiveTemperature === "number" ? { temperature: effectiveTemperature } : {}),
-        ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
-        apiKey,
-        signal: controller.signal,
-      });
-      const textStream: AsyncIterable<string> = {
-        async *[Symbol.asyncIterator]() {
-          for await (const event of stream) {
-            if (event.type === "text_delta") yield event.delta;
-            if (event.type === "error") {
-              lastError = event.error;
-              break;
-            }
-          }
-        },
-      };
-      return {
-        textStream: wrapTextStream(textStream),
-        canonicalModelId: parsed.canonical,
-        provider: parsed.provider,
-        usage: streamUsageWithTimeout({ result: stream.result(), timeoutMs }),
-        lastError: () => lastError,
-      };
-    }
-
     if (parsed.provider === "google") {
       const apiKey = apiKeys.googleApiKey;
       if (!apiKey)
@@ -775,20 +737,47 @@ export async function streamTextWithContext({
       };
     }
 
-    if (parsed.provider === "zai") {
-      const apiKey = apiKeys.openaiApiKey;
-      if (!apiKey) throw new Error("Missing Z_AI_API_KEY for zai/... model");
-      const model = resolveZaiModel({
-        modelId: parsed.model,
-        context,
-        openaiBaseUrlOverride,
-      });
+    if (parsed.provider === "openai" || parsed.provider === "zai" || parsed.provider === "nvidia") {
+      const openaiConfig: OpenAiClientConfig = (() => {
+        if (parsed.provider === "openai") {
+          return resolveOpenAiClientConfig({
+            apiKeys: {
+              openaiApiKey: apiKeys.openaiApiKey,
+              openrouterApiKey: apiKeys.openrouterApiKey,
+            },
+            forceOpenRouter,
+            openaiBaseUrlOverride,
+            forceChatCompletions,
+          });
+        }
+        if (parsed.provider === "zai") {
+          const key = apiKeys.openaiApiKey;
+          if (!key) throw new Error("Missing Z_AI_API_KEY for zai/... model");
+          return {
+            apiKey: key,
+            baseURL: openaiBaseUrlOverride ?? "https://api.z.ai/api/paas/v4",
+            useChatCompletions: true,
+            isOpenRouter: false,
+          };
+        }
+        const key = apiKeys.openaiApiKey;
+        if (!key) throw new Error("Missing NVIDIA_API_KEY for nvidia/... model");
+        return {
+          apiKey: key,
+          baseURL: openaiBaseUrlOverride ?? "https://integrate.api.nvidia.com/v1",
+          useChatCompletions: true,
+          isOpenRouter: false,
+        };
+      })();
+
+      const model = resolveOpenAiModel({ modelId: parsed.model, context, openaiConfig });
       const stream = streamSimple(model, context, {
         ...(typeof effectiveTemperature === "number" ? { temperature: effectiveTemperature } : {}),
         ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
-        apiKey,
+        apiKey: openaiConfig.apiKey,
         signal: controller.signal,
       });
+
       const textStream: AsyncIterable<string> = {
         async *[Symbol.asyncIterator]() {
           for await (const event of stream) {
@@ -809,41 +798,8 @@ export async function streamTextWithContext({
       };
     }
 
-    const openaiConfig = resolveOpenAiClientConfig({
-      apiKeys: {
-        openaiApiKey: apiKeys.openaiApiKey,
-        openrouterApiKey: apiKeys.openrouterApiKey,
-      },
-      forceOpenRouter,
-      openaiBaseUrlOverride,
-      forceChatCompletions,
-    });
-    const model = resolveOpenAiModel({ modelId: parsed.model, context, openaiConfig });
-    const stream = streamSimple(model, context, {
-      ...(typeof effectiveTemperature === "number" ? { temperature: effectiveTemperature } : {}),
-      ...(typeof maxOutputTokens === "number" ? { maxTokens: maxOutputTokens } : {}),
-      apiKey: openaiConfig.apiKey,
-      signal: controller.signal,
-    });
-
-    const textStream: AsyncIterable<string> = {
-      async *[Symbol.asyncIterator]() {
-        for await (const event of stream) {
-          if (event.type === "text_delta") yield event.delta;
-          if (event.type === "error") {
-            lastError = event.error;
-            break;
-          }
-        }
-      },
-    };
-    return {
-      textStream: wrapTextStream(textStream),
-      canonicalModelId: parsed.canonical,
-      provider: parsed.provider,
-      usage: streamUsageWithTimeout({ result: stream.result(), timeoutMs }),
-      lastError: () => lastError,
-    };
+    /* v8 ignore next */
+    throw new Error(`Unknown provider ${parsed.provider}`);
   } catch (error) {
     if (parsed.provider === "anthropic") {
       const normalized = normalizeAnthropicModelAccessError(error, parsed.model);
